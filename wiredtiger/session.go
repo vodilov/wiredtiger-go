@@ -7,5 +7,7 @@ package wiredtiger
 import "C"
 
 type Session struct {
-	w *C.WT_SESSION
+	w          *C.WT_SESSION
+	Connection *Connection
+	AppPrivate interface{}
 }
