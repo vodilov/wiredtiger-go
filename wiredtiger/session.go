@@ -10,7 +10,7 @@ int wiredtiger_session_close(WT_SESSION *session, const char *config) {
 }
 
 int wiredtiger_session_reconfigure(WT_SESSION *session, const char *config) {
-	return session->close(session, config);
+	return session->reconfigure(session, config);
 }
 
 const char *wiredtiger_session_strerror(WT_SESSION *session, int error) {
