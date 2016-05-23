@@ -7,6 +7,9 @@ Ready:
 - Open connection
 - WT_CONNECTION
 - WT_SESSION
+ 
+
+_Format types_
 
 | Format | C Type | Java type| Python type | Go Lang Type | Notes |
 | --- | --- | --- | --- | --- | --- |
