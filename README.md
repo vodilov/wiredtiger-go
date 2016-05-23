@@ -1,15 +1,15 @@
 # wiredtiger-go
 WiredTiger for Go Lang
 
-Under development
+##Under development
 
-Ready:
+##Ready:
 - Open connection
 - WT_CONNECTION
 - WT_SESSION
  
 
-_Format types_
+##Format types
 
 | Format | C Type | Java type| Python type | Go Lang Type | Notes |
 | --- | --- | --- | --- | --- | --- |
