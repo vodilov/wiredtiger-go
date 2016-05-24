@@ -1,12 +1,21 @@
 # wiredtiger-go
 WiredTiger for Go Lang
 
-##Under development
+Under development
 
 ##Ready:
-- Open connection
-- WT_CONNECTION
-- WT_SESSION
+- [x] Open connection
+- [x] WT_CONNECTION
+- [x] WT_SESSION
+- [ ] Pack/UnPack - IN PROGRESS
+- [ ] WT_CURSOR - IN PROGRESS
+- [ ] Documentation
+- [ ] WT_CONFIG_PARSER / WT_CONFIG_ITEM
+- [ ] WT_COLLATOR
+- [ ] WT_EXTRACTOR
+- [ ] WT_COMPRESSOR
+- [ ] WT_ENCRYPTOR
+- [ ] WT_DATA_SOURCE
  
 
 ##Format types
