@@ -2,14 +2,16 @@ package wiredtiger
 
 import "syscall"
 import "unicode"
+import "strings"
 
 type wtpack struct {
 	pfmt     *string
 	curIdx   int
 	endIdx   int
-	repeats  uint32
+	curIIdx  int
+	repeats  int
 	havesize bool
-	size     uint32
+	size     int
 	vtype    byte
 }
 
@@ -55,7 +57,7 @@ pfmt_next:
 
 		for ; unicode.IsDigit(rune((*p.pfmt)[p.curIdx])) && p.curIdx < p.endIdx; p.curIdx++ {
 			p.size *= 10
-			p.size += uint32((*p.pfmt)[p.curIdx] - '0')
+			p.size += int((*p.pfmt)[p.curIdx] - '0')
 		}
 	} else {
 		p.havesize = false
@@ -99,6 +101,89 @@ pfmt_next:
 	return 0
 }
 
+func (p *wtpack) pack_size(i interface{}) (int, int) {
+	switch p.vtype {
+	case 'x':
+		return int(p.size), 0
+	case 's':
+		v, ok := i.(string)
+		if ok == false || p.size == 0 {
+			return 0, int(syscall.EINVAL)
+		}
+
+		return len(v), 0
+	case 'S':
+		v, ok := i.(string)
+		if ok == false {
+			return 0, int(syscall.EINVAL)
+		}
+
+		s := strings.IndexByte(v, 0)
+
+		if s != -1 {
+			return s + 1, 0
+		}
+
+		return len(v), 0
+	case 'u', 'U':
+		v, ok := i.([]byte)
+		if ok == false {
+			return 0, int(syscall.EINVAL)
+		}
+
+		s := len(v)
+		pad := 0
+
+		switch {
+		case p.havesize == true && p.size < s:
+			s = p.size
+		case p.havesize == true:
+			pad = p.size - s
+		}
+
+		if p.vtype == 'U' {
+			// s += vsize_uint(s + pad)
+		}
+
+		return s, 0
+
+	case 'b', 'B', 't':
+		v, ok := i.(byte)
+		if ok == false {
+			return 0, int(syscall.EINVAL)
+		}
+
+		return 1, 0
+
+	case 'h', 'i', 'l', 'q':
+		v, ok := i.(byte)
+		if ok == false {
+			return 0, int(syscall.EINVAL)
+		}
+
+		return 1, 0
+
+	case 'H', 'I', 'L', 'Q', 'r':
+		v, ok := i.(byte)
+		if ok == false {
+			return 0, int(syscall.EINVAL)
+		}
+
+		return 1, 0
+
+	case 'R':
+		v, ok := i.(uint64)
+		if ok == false {
+			return 0, int(syscall.EINVAL)
+		}
+
+		return 8, 0
+
+	default:
+		return 0, int(syscall.EINVAL)
+	}
+}
+
 func Pack(pfmt string, a ...interface{}) ([]byte, int) {
 	var r []byte
 	var res int
@@ -106,6 +191,17 @@ func Pack(pfmt string, a ...interface{}) ([]byte, int) {
 	wtp := new(wtpack)
 	if res = wtp.start(&pfmt); res != 0 {
 		return nil, int(syscall.EINVAL)
+	}
+
+	for {
+		if res = wtp.next(); res != 0 {
+			break
+		}
+
+	}
+
+	if res != 0 && res != WT_NOTFOUND {
+		return nil, res
 	}
 
 	return r, 0
