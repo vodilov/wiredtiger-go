@@ -102,8 +102,116 @@ func vpack_uint(buf *[]byte, x uint64) {
 	case x <= uint64(iPOS_1BYTE_MAX):
 		*buf = append(*buf, byte(iPOS_1BYTE_MARKER|byte(get_bits(x, 6, 0)&0xFF)))
 	case x <= uint64(iPOS_2BYTE_MAX):
-		*buf = append(*buf, byte(iPOS_1BYTE_MARKER|byte(get_bits(x, 6, 0)&0xFF)))
+		x -= uint64(iPOS_1BYTE_MAX) + 1
+		*buf = append(*buf, byte(iPOS_2BYTE_MARKER|byte(get_bits(x, 13, 8)&0xFF)), byte(get_bits(x, 8, 0)&0xFF))
 	case x == uint64(iPOS_2BYTE_MAX+1):
+		*buf = append(*buf, byte(iPOS_1BYTE_MARKER|0x01), byte(0))
 	default:
+		vpack_posint(buf, x)
 	}
+}
+
+func vpack_int(buf *[]byte, x int64) {
+	switch {
+	case x < int64(iNEG_2BYTE_MIN):
+		vpack_negint(buf, uint64(x))
+	case x < int64(iNEG_1BYTE_MIN):
+		x -= iNEG_2BYTE_MIN
+		*buf = append(*buf, byte(iNEG_2BYTE_MARKER|byte(get_bits(uint64(x), 13, 8)&0xFF)), byte(get_bits(uint64(x), 8, 0)&0xFF))
+	case x < 0:
+		x -= iNEG_1BYTE_MIN
+		*buf = append(*buf, byte(iNEG_1BYTE_MARKER|byte(get_bits(uint64(x), 6, 0)&0xFF)))
+	default:
+		vpack_uint(buf, uint64(x))
+	}
+}
+
+func vunpack_uint(buf []byte, bcur *int, bend int) (uint64, int) {
+	switch buf[*bcur] & 0xF0 {
+	case iPOS_1BYTE_MARKER, iPOS_1BYTE_MARKER | 0x10, iPOS_1BYTE_MARKER | 0x20, iPOS_1BYTE_MARKER | 0x30:
+		x := get_bits(uint64(buf[*bcur]), 6, 0)
+		*bcur++
+		return x, 0
+	case iPOS_2BYTE_MARKER, iPOS_2BYTE_MARKER | 0x10:
+		if *bcur < bend {
+			x := get_bits(uint64(buf[*bcur]), 5, 0) << 8
+			*bcur++
+			x |= uint64(buf[*bcur])
+			x += uint64(iPOS_1BYTE_MAX + 1)
+			*bcur++
+			return x, 0
+		}
+	case iPOS_MULTI_MARKER:
+		x, r := vunpack_posint(buf, bcur, bend)
+		if r == 0 {
+			x += uint64(iPOS_2BYTE_MAX + 1)
+			return x, 0
+		}
+
+		return 0, r
+	}
+
+	return 0, int(syscall.EINVAL)
+}
+
+func vunpack_int(buf []byte, bcur *int, bend int) (int64, int) {
+	switch buf[*bcur] & 0xF0 {
+	case iNEG_MULTI_MARKER:
+		x, r := vunpack_negint(buf, bcur, bend)
+
+		return int64(x), r
+
+	case iNEG_2BYTE_MARKER, iNEG_2BYTE_MARKER | 0x10:
+		if *bcur < bend {
+			x := int64(get_bits(uint64(buf[*bcur]), 5, 0) << 8)
+			*bcur++
+			x |= int64(buf[*bcur])
+			x += int64(iPOS_1BYTE_MAX + 1)
+			*bcur++
+			return x, 0
+		}
+
+		return 0, int(syscall.EINVAL)
+
+	case iNEG_1BYTE_MARKER, iNEG_1BYTE_MARKER | 0x10, iNEG_1BYTE_MARKER | 0x20, iNEG_1BYTE_MARKER | 0x30:
+		x := int64(get_bits(uint64(buf[*bcur]), 6, 0)) + int64(iNEG_1BYTE_MIN)
+		*bcur++
+		return x, 0
+	}
+
+	x, r := vunpack_uint(buf, bcur, bend)
+	return int64(x), r
+}
+
+func vsize_posint(x uint64) int {
+	return 9 - int(leading_zeros(x))
+}
+
+func vsize_negint(x uint64) int {
+	return 9 - int(leading_zeros(^x))
+}
+
+func vsize_uint(x uint64) int {
+	switch {
+	case x <= uint64(iPOS_1BYTE_MAX):
+		return 1
+	case x <= uint64(iPOS_2BYTE_MAX+1):
+		return 2
+	}
+
+	x -= uint64(iPOS_2BYTE_MAX + 1)
+	return vsize_posint(x)
+}
+
+func vsize_int(x int64) int {
+	switch {
+	case x < iNEG_2BYTE_MIN:
+		return vsize_negint(uint64(x))
+	case x < iNEG_1BYTE_MIN:
+		return 2
+	case x < 0:
+		return 1
+	}
+
+	return vsize_uint(uint64(x))
 }

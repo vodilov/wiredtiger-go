@@ -105,26 +105,22 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 	switch p.vtype {
 	case 'x':
 		return int(p.size), 0
-	case 's':
-		v, ok := i.(string)
-		if ok == false || p.size == 0 {
-			return 0, int(syscall.EINVAL)
-		}
-
-		return len(v), 0
-	case 'S':
+	case 'S', 's':
 		v, ok := i.(string)
 		if ok == false {
 			return 0, int(syscall.EINVAL)
 		}
 
-		s := strings.IndexByte(v, 0)
+		if p.vtype == 's' || p.havesize == true {
+			return p.size, 0
+		} else {
+			s := strings.IndexByte(v, 0)
+			if s != -1 {
+				return s + 1, 0
+			}
 
-		if s != -1 {
-			return s + 1, 0
+			return len(v), 0
 		}
-
-		return len(v), 0
 	case 'u', 'U':
 		v, ok := i.([]byte)
 		if ok == false {
@@ -142,13 +138,13 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 		}
 
 		if p.vtype == 'U' {
-			// s += vsize_uint(s + pad)
+			s += vsize_uint(uint64(s + pad))
 		}
 
-		return s, 0
+		return s + pad, 0
 
 	case 'b', 'B', 't':
-		v, ok := i.(byte)
+		_, ok := i.(byte)
 		if ok == false {
 			return 0, int(syscall.EINVAL)
 		}
@@ -156,7 +152,7 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 		return 1, 0
 
 	case 'h', 'i', 'l', 'q':
-		v, ok := i.(byte)
+		_, ok := i.(byte)
 		if ok == false {
 			return 0, int(syscall.EINVAL)
 		}
@@ -164,7 +160,7 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 		return 1, 0
 
 	case 'H', 'I', 'L', 'Q', 'r':
-		v, ok := i.(byte)
+		_, ok := i.(byte)
 		if ok == false {
 			return 0, int(syscall.EINVAL)
 		}
@@ -172,7 +168,7 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 		return 1, 0
 
 	case 'R':
-		v, ok := i.(uint64)
+		_, ok := i.(uint64)
 		if ok == false {
 			return 0, int(syscall.EINVAL)
 		}
