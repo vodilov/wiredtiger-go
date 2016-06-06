@@ -3,12 +3,12 @@ package wiredtiger
 import "syscall"
 import "unicode"
 import "strings"
+import "bytes"
 
 type wtpack struct {
 	pfmt     *string
 	curIdx   int
 	endIdx   int
-	curIIdx  int
 	repeats  int
 	havesize bool
 	size     int
@@ -101,6 +101,10 @@ pfmt_next:
 	return 0
 }
 
+func (p *wtpack) reset() {
+	p.curIdx = 0
+}
+
 func (p *wtpack) pack_size(i interface{}) (int, int) {
 	switch p.vtype {
 	case 'x':
@@ -152,53 +156,341 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 		return 1, 0
 
 	case 'h', 'i', 'l', 'q':
-		_, ok := i.(byte)
-		if ok == false {
+		var vc int64
+
+		switch v := i.(type) {
+		case int16:
+			vc = int64(v)
+		case int32:
+			vc = int64(v)
+		case int64:
+			vc = v
+		default:
 			return 0, int(syscall.EINVAL)
 		}
 
-		return 1, 0
+		return vsize_int(vc), 0
 
 	case 'H', 'I', 'L', 'Q', 'r':
-		_, ok := i.(byte)
-		if ok == false {
+		var vc uint64
+
+		switch v := i.(type) {
+		case uint16:
+			vc = uint64(v)
+		case uint32:
+			vc = uint64(v)
+		case uint64:
+			vc = v
+		default:
 			return 0, int(syscall.EINVAL)
 		}
 
-		return 1, 0
-
-	case 'R':
-		_, ok := i.(uint64)
-		if ok == false {
-			return 0, int(syscall.EINVAL)
-		}
-
-		return 8, 0
+		return vsize_uint(vc), 0
 
 	default:
 		return 0, int(syscall.EINVAL)
 	}
 }
 
+func (p *wtpack) pack(buf *[]byte, i interface{}) {
+	switch p.vtype {
+	case 'x':
+		for p.size > 0 {
+			*buf = append(*buf, byte(0))
+			p.size--
+		}
+	case 's':
+		v := i.(string)
+		switch {
+		case p.size == len(v):
+			*buf = append(*buf, v...)
+		case p.size > len(v):
+			pad := p.size - len(v)
+			*buf = append(*buf, v...)
+
+			for ; pad != 0; pad-- {
+				*buf = append(*buf, byte(0))
+			}
+		case p.size < len(v):
+			*buf = append(*buf, v[:p.size]...)
+		}
+	case 'S':
+		v := i.(string)
+		s := strings.IndexByte(v, 0)
+		if s == -1 {
+			*buf = append(*buf, v...)
+			*buf = append(*buf, byte(0))
+		} else {
+			*buf = append(*buf, v[:s+1]...)
+		}
+	case 'u', 'U':
+		v := i.([]byte)
+		s := len(v)
+		pad := 0
+
+		switch {
+		case p.havesize == true && p.size < s:
+			s = p.size
+		case p.havesize == true:
+			pad = p.size - s
+		}
+
+		if p.vtype == 'U' {
+			vpack_uint(buf, uint64(s+pad))
+		}
+
+		if s > 0 {
+			*buf = append(*buf, v[:s]...)
+		}
+
+		for ; pad != 0; pad-- {
+			*buf = append(*buf, byte(0))
+		}
+	case 'b':
+		v := i.(int8)
+		*buf = append(*buf, byte(uint8(v)^0x80))
+	case 'B', 't':
+		v := i.(byte)
+		*buf = append(*buf, v)
+	case 'h', 'i', 'l', 'q':
+		var vc int64
+
+		switch v := i.(type) {
+		case int16:
+			vc = int64(v)
+		case int32:
+			vc = int64(v)
+		case int64:
+			vc = v
+		}
+
+		vpack_int(buf, vc)
+	case 'H', 'I', 'L', 'Q', 'r':
+		var vc uint64
+
+		switch v := i.(type) {
+		case uint16:
+			vc = uint64(v)
+		case uint32:
+			vc = uint64(v)
+		case uint64:
+			vc = v
+		}
+
+		vpack_uint(buf, vc)
+	}
+}
+
+func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
+	switch p.vtype {
+	case 'x':
+		*bcur += p.size
+	case 'S', 's':
+		var s int
+		v, ok := i.(*string)
+		if ok == false {
+			return int(syscall.EINVAL)
+		}
+
+		if p.vtype == 's' || p.havesize == true {
+			s = p.size
+		} else {
+			s = bytes.IndexByte(buf[*bcur:], 0)
+			if s != -1 {
+				return int(syscall.EINVAL)
+			}
+		}
+
+		*v = string(buf[*bcur : *bcur+s])
+		*bcur += s
+	case 'u', 'U':
+		var s int
+		v, ok := i.(*[]byte)
+		if ok == false {
+			return int(syscall.EINVAL)
+		}
+
+		switch {
+		case p.havesize == true:
+			s = p.size
+		case p.vtype == 'U':
+			if su, r := vunpack_uint(buf, bcur, bend); r != 0 {
+				return r
+			} else {
+				s = int(su)
+			}
+
+		default:
+			s = bend - *bcur
+		}
+
+		*v = buf[*bcur : *bcur+s]
+		*bcur += s
+
+	case 'b':
+		v, ok := i.(*int8)
+		if ok == false {
+			return int(syscall.EINVAL)
+		}
+
+		*v = int8(buf[*bcur] ^ 0x80)
+		*bcur++
+
+	case 'B', 't':
+		v, ok := i.(*uint8)
+		if ok == false {
+			return int(syscall.EINVAL)
+		}
+
+		*v = buf[*bcur]
+		*bcur++
+
+	case 'h', 'i', 'l', 'q':
+		if vc, r := vunpack_int(buf, bcur, bend); r != 0 {
+			return r
+		} else {
+			switch v := i.(type) {
+			case *int16:
+				*v = int16(vc)
+			case *int32:
+				*v = int32(vc)
+			case *int64:
+				*v = int64(vc)
+			default:
+				return int(syscall.EINVAL)
+			}
+		}
+	case 'H', 'I', 'L', 'Q', 'r':
+		if vc, r := vunpack_uint(buf, bcur, bend); r != 0 {
+			return r
+		} else {
+			switch v := i.(type) {
+			case *uint16:
+				*v = uint16(vc)
+			case *uint32:
+				*v = uint32(vc)
+			case *uint64:
+				*v = uint64(vc)
+			default:
+				return int(syscall.EINVAL)
+			}
+		}
+	default:
+		return int(syscall.EINVAL)
+	}
+
+	return 0
+}
+
 func Pack(pfmt string, a ...interface{}) ([]byte, int) {
-	var r []byte
 	var res int
+	var total int
+	var cidx int
+
+	pcnt := len(a)
 
 	wtp := new(wtpack)
 	if res = wtp.start(&pfmt); res != 0 {
 		return nil, int(syscall.EINVAL)
 	}
 
-	for {
-		if res = wtp.next(); res != 0 {
+	res = wtp.next()
+	for res == 0 {
+		if wtp.vtype == 'x' {
+			s, _ := wtp.pack_size(byte(0))
+			total += s
+			res = wtp.next()
+			continue
+		}
+
+		if cidx == pcnt {
+			res = int(syscall.EINVAL)
 			break
 		}
 
+		s, r := wtp.pack_size(a[cidx])
+
+		if r != 0 {
+			res = r
+			break
+		}
+
+		total += s
+		res = wtp.next()
+		cidx++
 	}
 
 	if res != 0 && res != WT_NOTFOUND {
 		return nil, res
 	}
 
-	return r, 0
+	if total == 0 {
+		return nil, int(syscall.EINVAL)
+	}
+
+	rarray := make([]byte, 0, total)
+	wtp.reset()
+	cidx = 0
+
+	// Parameters have allready validated
+	res = wtp.next()
+	for res == 0 {
+		if wtp.vtype == 'x' {
+			res = wtp.next()
+			continue
+		}
+
+		res = wtp.next()
+		cidx++
+	}
+
+	if res != 0 && res != WT_NOTFOUND {
+		return nil, res
+	}
+
+	return rarray, 0
+}
+
+func UnPack(pfmt string, buf []byte, a ...interface{}) int {
+	var res int
+	var cidx int
+	var bcur int
+
+	pcnt := len(a)
+	bend := len(buf)
+
+	if bend == 0 {
+		return int(syscall.EINVAL)
+	}
+
+	wtp := new(wtpack)
+	if res = wtp.start(&pfmt); res != 0 {
+		return int(syscall.EINVAL)
+	}
+
+	res = wtp.next()
+	for res == 0 {
+		if wtp.vtype == 'x' {
+			res = wtp.unpack(buf, &bcur, bend, byte(0))
+			res = wtp.next()
+			continue
+		}
+
+		if pcnt == 0 {
+			res = int(syscall.EINVAL)
+			break
+		}
+
+		if res = wtp.unpack(buf, &bcur, bend, a[cidx]); res == 0 {
+			res = wtp.next()
+			cidx++
+			pcnt--
+		}
+	}
+
+	if res != 0 && res != WT_NOTFOUND {
+		return res
+	}
+
+	return 0
 }
