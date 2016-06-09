@@ -124,7 +124,7 @@ func (c *Connection) OpenSession(config string) (newsession *Session, result int
 	if result == 0 {
 		newsession = new(Session)
 		newsession.w = w
-		newsession.Connection = c
+		newsession.conn = c
 	}
 
 	return

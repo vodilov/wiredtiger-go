@@ -18,7 +18,15 @@ const char *wiredtiger_session_strerror(WT_SESSION *session, int error) {
 }
 
 int wiredtiger_session_open_cursor(WT_SESSION *session, const char *uri, WT_CURSOR *to_dup, const char *config, WT_CURSOR **cursorp) {
-	return session->open_cursor(session, uri, to_dup, config, cursorp);
+	int ret;
+
+	if(ret = session->open_cursor(session, uri, to_dup, config, cursorp))
+		return ret;
+
+	if (((*cursorp)->flags & WT_CURSTD_DUMP_JSON) == 0)
+			(*cursorp)->flags |= WT_CURSTD_RAW;
+
+	return 0;
 }
 
 int wiredtiger_session_create(WT_SESSION *session, const char *name, const char *config) {
@@ -109,8 +117,8 @@ import "C"
 import "unsafe"
 
 type Session struct {
-	w          *C.WT_SESSION
-	Connection *Connection
+	w    *C.WT_SESSION
+	conn *Connection
 }
 
 // General
@@ -147,6 +155,10 @@ func (s *Session) Error(errnum int) string {
 	return C.GoString(C.wiredtiger_session_strerror(s.w, C.int(errnum)))
 }
 
+func (s *Session) GetConnection() *Connection {
+	return s.conn
+}
+
 // Cursor handles
 
 func (s *Session) OpenCursor(uri string, to_dup *Cursor, config string) (newcursor *Cursor, result int) {
@@ -174,10 +186,10 @@ func (s *Session) OpenCursor(uri string, to_dup *Cursor, config string) (newcurs
 	if result == 0 {
 		newcursor = new(Cursor)
 		newcursor.w = w
-		newcursor.Session = s
-		newcursor.URI = C.GoString(w.uri)
-		newcursor.KeyFormat = C.GoString(w.key_format)
-		newcursor.ValueFormat = C.GoString(w.value_format)
+		newcursor.session = s
+		newcursor.uri = C.GoString(w.uri)
+		newcursor.keyFormat = C.GoString(w.key_format)
+		newcursor.valueFormat = C.GoString(w.value_format)
 	}
 
 	return

@@ -13,8 +13,13 @@ int wiredtiger_cursor_reconfigure(WT_CURSOR *cursor, const char *config) {
 	return cursor->reconfigure(cursor, config);
 }
 
-// TODO: data access
+int wiredtiger_cursor_get_key(WT_CURSOR *cursor, WT_ITEM *v) {
+	return cursor->get_key(cursor, v);
+}
 
+int wiredtiger_cursor_get_value(WT_CURSOR *cursor, WT_ITEM *v) {
+	return cursor->get_value(cursor, v);
+}
 
 int wiredtiger_cursor_compare(WT_CURSOR *cursor, WT_CURSOR *other, int *comparep) {
 	return cursor->compare(cursor, other, comparep);
@@ -36,23 +41,30 @@ int wiredtiger_cursor_reset(WT_CURSOR *cursor) {
 	return cursor->reset(cursor);
 }
 
-int wiredtiger_cursor_search(WT_CURSOR *cursor) {
+int wiredtiger_cursor_search(WT_CURSOR *cursor, WT_ITEM *key) {
+	cursor->set_key(cursor, key);
 	return cursor->search(cursor);
 }
 
-int wiredtiger_cursor_search_near(WT_CURSOR *cursor, int *exactp) {
+int wiredtiger_cursor_search_near(WT_CURSOR *cursor, WT_ITEM *key, int *exactp) {
+	cursor->set_key(cursor, key);
 	return cursor->search_near(cursor, exactp);
 }
 
-int wiredtiger_cursor_insert(WT_CURSOR *cursor) {
+int wiredtiger_cursor_insert(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value) {
+	cursor->set_key(cursor, key);
+	cursor->set_value(cursor, value);
 	return cursor->insert(cursor);
 }
 
-int wiredtiger_cursor_update(WT_CURSOR *cursor) {
+int wiredtiger_cursor_update(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value) {
+	cursor->set_key(cursor, key);
+	cursor->set_value(cursor, value);
 	return cursor->update(cursor);
 }
 
-int wiredtiger_cursor_remove(WT_CURSOR *cursor) {
+int wiredtiger_cursor_remove(WT_CURSOR *cursor, WT_ITEM *key) {
+	cursor->set_key(cursor, key);
 	return cursor->remove(cursor);
 }
 */
@@ -61,10 +73,12 @@ import "unsafe"
 
 type Cursor struct {
 	w           *C.WT_CURSOR
-	Session     *Session
-	URI         string
-	KeyFormat   string
-	ValueFormat string
+	session     *Session
+	uri         string
+	keyFormat   string
+	valueFormat string
+	keyPack     []byte
+	valuePack   []byte
 }
 
 // General
@@ -73,7 +87,7 @@ func (c *Cursor) Close() int {
 	result := int(C.wiredtiger_cursor_close(c.w))
 
 	if result == 0 {
-		c.w = nil
+		c = nil
 	}
 
 	return result
@@ -90,23 +104,63 @@ func (c *Cursor) Reconfigure(config string) int {
 	return int(C.wiredtiger_cursor_reconfigure(c.w, configC))
 }
 
+func (c *Cursor) GetSession() *Session {
+	return c.session
+}
+
+func (c *Cursor) GetUri() string {
+	return c.uri
+}
+
+func (c *Cursor) GetKeyFormat() string {
+	return c.keyFormat
+}
+
+func (c *Cursor) GetValueFormat() string {
+	return c.valueFormat
+}
+
 // Data access
 // TODO: implement
 
 func (c *Cursor) GetKey(a ...interface{}) int {
-	return -1
+	var v C.WT_ITEM
+
+	if result := int(C.wiredtiger_cursor_get_key(c.w, &v)); result != 0 {
+		return result
+	}
+
+	return UnPack(c.keyFormat, C.GoBytes(unsafe.Pointer(v.data), C.int(v.size)), a)
 }
 
 func (c *Cursor) GetValue(a ...interface{}) int {
-	return -1
+	var v C.WT_ITEM
+
+	if result := int(C.wiredtiger_cursor_get_value(c.w, &v)); result != 0 {
+		return result
+	}
+
+	return UnPack(c.valueFormat, C.GoBytes(unsafe.Pointer(v.data), C.int(v.size)), a)
 }
 
 func (c *Cursor) SetKey(a ...interface{}) int {
-	return -1
+	b, res := Pack(c.keyFormat, a)
+
+	if res == 0 {
+		c.keyPack = b
+	}
+
+	return res
 }
 
 func (c *Cursor) SetValue(a ...interface{}) int {
-	return -1
+	b, res := Pack(c.valueFormat, a)
+
+	if res == 0 {
+		c.valuePack = b
+	}
+
+	return res
 }
 
 // Cursor positioning
@@ -158,17 +212,32 @@ func (c *Cursor) Prev() int {
 }
 
 func (c *Cursor) Reset() int {
+	c.keyPack = nil
+	c.valuePack = nil
 	return int(C.wiredtiger_cursor_reset(c.w))
 }
 
 func (c *Cursor) Search() int {
-	return int(C.wiredtiger_cursor_search(c.w))
+	var key C.WT_ITEM
+
+	if c.keyPack != nil && len(c.keyPack) > 0 {
+		key.data = unsafe.Pointer(&c.keyPack[0])
+		key.size = C.size_t(len(c.keyPack))
+	}
+
+	return int(C.wiredtiger_cursor_search(c.w, &key))
 }
 
 func (c *Cursor) SearchNear() (compare_result, result int) {
 	var compare_resultC C.int
+	var key C.WT_ITEM
 
-	result = int(C.wiredtiger_cursor_search_near(c.w, &compare_resultC))
+	if c.keyPack != nil && len(c.keyPack) > 0 {
+		key.data = unsafe.Pointer(&c.keyPack[0])
+		key.size = C.size_t(len(c.keyPack))
+	}
+
+	result = int(C.wiredtiger_cursor_search_near(c.w, &key, &compare_resultC))
 
 	if result == 0 {
 		compare_result = int(compare_resultC)
@@ -180,13 +249,44 @@ func (c *Cursor) SearchNear() (compare_result, result int) {
 // Data modification
 
 func (c *Cursor) Insert() int {
-	return int(C.wiredtiger_cursor_insert(c.w))
+	var key, val C.WT_ITEM
+
+	if c.keyPack != nil && len(c.keyPack) > 0 {
+		key.data = unsafe.Pointer(&c.keyPack[0])
+		key.size = C.size_t(len(c.keyPack))
+	}
+
+	if c.valuePack != nil && len(c.valuePack) > 0 {
+		val.data = unsafe.Pointer(&c.valuePack[0])
+		val.size = C.size_t(len(c.valuePack))
+	}
+
+	return int(C.wiredtiger_cursor_insert(c.w, &key, &val))
 }
 
 func (c *Cursor) Update() int {
-	return int(C.wiredtiger_cursor_update(c.w))
+	var key, val C.WT_ITEM
+
+	if c.keyPack != nil && len(c.keyPack) > 0 {
+		key.data = unsafe.Pointer(&c.keyPack[0])
+		key.size = C.size_t(len(c.keyPack))
+	}
+
+	if c.valuePack != nil && len(c.valuePack) > 0 {
+		val.data = unsafe.Pointer(&c.valuePack[0])
+		val.size = C.size_t(len(c.valuePack))
+	}
+
+	return int(C.wiredtiger_cursor_update(c.w, &key, &val))
 }
 
 func (c *Cursor) Remove() int {
-	return int(C.wiredtiger_cursor_remove(c.w))
+	var key C.WT_ITEM
+
+	if c.keyPack != nil && len(c.keyPack) > 0 {
+		key.data = unsafe.Pointer(&c.keyPack[0])
+		key.size = C.size_t(len(c.keyPack))
+	}
+
+	return int(C.wiredtiger_cursor_remove(c.w, &key))
 }
