@@ -59,10 +59,10 @@ int packtest_general() {
 	wti_vb2.data = vb2;
 	wti_vb2.size = 4;
 
-	if(ret = wiredtiger_struct_size(session, &buf_size, "xbBq3sSuu", -2, 2, -9223372036854775808LL, "ABCD", "Hello", &wti_vb1, &wti_vb2))
+	if(ret = wiredtiger_struct_size(session, &buf_size, "xbBq3sSuu", -2, 2, -9223372036854775808ULL, "ABCD", "Hello", &wti_vb1, &wti_vb2))
 		return ret;
 
-    return wiredtiger_struct_pack(session, buf, buf_size, "xbBq3sSuu",  -2, 2, -9223372036854775808LL, "ABCD", "Hello", &wti_vb1, &wti_vb2);
+    return wiredtiger_struct_pack(session, buf, buf_size, "xbBq3sSuu",  -2, 2, -9223372036854775808ULL, "ABCD", "Hello", &wti_vb1, &wti_vb2);
 }
 
 

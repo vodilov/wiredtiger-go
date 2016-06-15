@@ -124,27 +124,35 @@ func (c *Cursor) GetValueFormat() string {
 // TODO: implement
 
 func (c *Cursor) GetKey(a ...interface{}) int {
-	var v C.WT_ITEM
+	if c.keyPack == nil {
+		var v C.WT_ITEM
 
-	if result := int(C.wiredtiger_cursor_get_key(c.w, &v)); result != 0 {
-		return result
+		if result := int(C.wiredtiger_cursor_get_key(c.w, &v)); result != 0 {
+			return result
+		}
+
+		c.keyPack = C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
 	}
 
-	return UnPack(c.keyFormat, C.GoBytes(unsafe.Pointer(v.data), C.int(v.size)), a)
+	return UnPack(c.keyFormat, c.keyPack, a...)
 }
 
 func (c *Cursor) GetValue(a ...interface{}) int {
-	var v C.WT_ITEM
+	if c.valuePack == nil {
+		var v C.WT_ITEM
 
-	if result := int(C.wiredtiger_cursor_get_value(c.w, &v)); result != 0 {
-		return result
+		if result := int(C.wiredtiger_cursor_get_value(c.w, &v)); result != 0 {
+			return result
+		}
+
+		c.valuePack = C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
 	}
 
-	return UnPack(c.valueFormat, C.GoBytes(unsafe.Pointer(v.data), C.int(v.size)), a)
+	return UnPack(c.valueFormat, c.valuePack, a...)
 }
 
 func (c *Cursor) SetKey(a ...interface{}) int {
-	b, res := Pack(c.keyFormat, a)
+	b, res := Pack(c.keyFormat, a...)
 
 	if res == 0 {
 		c.keyPack = b
@@ -154,7 +162,7 @@ func (c *Cursor) SetKey(a ...interface{}) int {
 }
 
 func (c *Cursor) SetValue(a ...interface{}) int {
-	b, res := Pack(c.valueFormat, a)
+	b, res := Pack(c.valueFormat, a...)
 
 	if res == 0 {
 		c.valuePack = b
@@ -204,11 +212,25 @@ func (c *Cursor) Equals(other *Cursor) (compare_result bool, result int) {
 }
 
 func (c *Cursor) Next() int {
-	return int(C.wiredtiger_cursor_next(c.w))
+	res := int(C.wiredtiger_cursor_next(c.w))
+
+	if res == 0 {
+		c.keyPack = nil
+		c.valuePack = nil
+	}
+
+	return res
 }
 
 func (c *Cursor) Prev() int {
-	return int(C.wiredtiger_cursor_prev(c.w))
+	res := int(C.wiredtiger_cursor_prev(c.w))
+
+	if res == 0 {
+		c.keyPack = nil
+		c.valuePack = nil
+	}
+
+	return res
 }
 
 func (c *Cursor) Reset() int {
@@ -225,7 +247,13 @@ func (c *Cursor) Search() int {
 		key.size = C.size_t(len(c.keyPack))
 	}
 
-	return int(C.wiredtiger_cursor_search(c.w, &key))
+	res := int(C.wiredtiger_cursor_search(c.w, &key))
+
+	if res == 0 {
+		c.valuePack = nil
+	}
+
+	return res
 }
 
 func (c *Cursor) SearchNear() (compare_result, result int) {
@@ -241,6 +269,8 @@ func (c *Cursor) SearchNear() (compare_result, result int) {
 
 	if result == 0 {
 		compare_result = int(compare_resultC)
+		c.keyPack = nil
+		c.valuePack = nil
 	}
 
 	return
@@ -288,5 +318,11 @@ func (c *Cursor) Remove() int {
 		key.size = C.size_t(len(c.keyPack))
 	}
 
-	return int(C.wiredtiger_cursor_remove(c.w, &key))
+	res := int(C.wiredtiger_cursor_remove(c.w, &key))
+
+	if res == 0 {
+		c.valuePack = nil
+	}
+
+	return res
 }
