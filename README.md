@@ -8,7 +8,7 @@ Under development
 - [x] WT_CONNECTION
 - [x] WT_SESSION
 - [x] Pack/UnPack
-- [ ] **WT_CURSOR - IN PROGRESS**
+- [ ] **WT_CURSOR - TESTING**
 - [ ] Documentation
 - [ ] WT_CONFIG_PARSER / WT_CONFIG_ITEM
 - [ ] WT_COLLATOR
