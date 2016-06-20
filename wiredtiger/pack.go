@@ -73,8 +73,6 @@ import "unicode"
 import "strings"
 import "bytes"
 
-import "fmt"
-
 type wtpack struct {
 	pfmt     *string
 	curIdx   int
@@ -444,7 +442,6 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 			}
 		}
 	default:
-		fmt.Println("unknown")
 		return int(syscall.EINVAL)
 	}
 
@@ -541,8 +538,6 @@ func UnPack(pfmt string, buf []byte, a ...interface{}) int {
 
 	res = wtp.next()
 	for res == 0 {
-		fmt.Printf("vtype = %c\n", wtp.vtype)
-
 		if wtp.vtype == 'x' {
 			res = wtp.unpack(buf, &bcur, bend, byte(0))
 			res = wtp.next()

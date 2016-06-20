@@ -160,3 +160,43 @@ func TestPack(t *testing.T) {
 		}
 	}
 }
+
+func TestOpen(t *testing.T) {
+	os.Mkdir("data", 0777)
+	defer os.RemoveAll("data")
+
+	con, res := Open("data", "create")
+
+	if res != 0 {
+		t.Errorf("Got error while open database: %d", res)
+		return
+	}
+
+	defer con.Close("")
+
+	session, er2 := con.OpenSession("")
+
+	if er2 != 0 {
+		t.Errorf("Got error while open session: %d", er2)
+		return
+	}
+
+	defer session.Close("")
+
+	er3 := session.Create("table:access", "key_format=S,value_format=S")
+
+	if er3 != 0 {
+		t.Errorf("Got error while open session: %d", er3)
+		return
+	}
+
+	cursor, er4 := session.OpenCursor("table:access", nil, "")
+
+	if er4 != 0 {
+		t.Errorf("Got error while open cursor: %d", er4)
+		return
+	}
+
+	cursor.Close()
+
+}

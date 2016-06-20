@@ -168,12 +168,12 @@ func (s *Session) OpenCursor(uri string, to_dup *Cursor, config string) (newcurs
 	var wc *C.WT_CURSOR = nil
 
 	if len(uri) > 0 {
-		uriC := C.CString(uri)
+		uriC = C.CString(uri)
 		defer C.free(unsafe.Pointer(uriC))
 	}
 
 	if len(config) > 0 {
-		configC := C.CString(config)
+		configC = C.CString(config)
 		defer C.free(unsafe.Pointer(configC))
 	}
 
