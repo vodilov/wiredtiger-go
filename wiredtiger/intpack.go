@@ -1,7 +1,5 @@
 package wiredtiger
 
-import "syscall"
-
 const (
 	iNEG_MULTI_MARKER byte = 0x10
 	iNEG_2BYTE_MARKER byte = 0x20
@@ -70,7 +68,7 @@ func vunpack_posint(buf []byte, bcur *int, bend int) (uint64, int) {
 
 	l := int(buf[*bcur] & 0xf)
 	if *bcur+l+1 > bend {
-		return 0, int(syscall.EINVAL)
+		return 0, EINVAL
 	}
 
 	*bcur++
@@ -88,7 +86,7 @@ func vunpack_negint(buf []byte, bcur *int, bend int) (uint64, int) {
 
 	l := int(8 - buf[*bcur]&0xf)
 	if *bcur+l+1 > bend {
-		return 0, int(syscall.EINVAL)
+		return 0, EINVAL
 	}
 
 	*bcur++
@@ -160,7 +158,7 @@ func vunpack_uint(buf []byte, bcur *int, bend int) (uint64, int) {
 		return 0, r
 	}
 
-	return 0, int(syscall.EINVAL)
+	return 0, EINVAL
 }
 
 func vunpack_int(buf []byte, bcur *int, bend int) (int64, int) {
@@ -180,7 +178,7 @@ func vunpack_int(buf []byte, bcur *int, bend int) (int64, int) {
 			return x, 0
 		}
 
-		return 0, int(syscall.EINVAL)
+		return 0, EINVAL
 
 	case iNEG_1BYTE_MARKER, iNEG_1BYTE_MARKER | 0x10, iNEG_1BYTE_MARKER | 0x20, iNEG_1BYTE_MARKER | 0x30:
 		x := iNEG_1BYTE_MIN + int64(get_bits(uint64(buf[*bcur]), 6, 0))

@@ -3,6 +3,13 @@ package wiredtiger
 /*
 #cgo LDFLAGS: -lwiredtiger
 #include <wiredtiger.h>
+
+#ifdef WIN32
+#include <windows.h>
+#endif
+
+#include <errors.h>
+
 */
 import "C"
 
@@ -15,6 +22,7 @@ const (
 	WT_NOTFOUND      = int(C.WT_NOTFOUND)
 	WT_PANIC         = int(C.WT_PANIC)
 	WT_RUN_RECOVERY  = int(C.WT_RUN_RECOVERY)
+	EINVAL           = int(C.EINVAL)
 )
 
 // Connection statistics
