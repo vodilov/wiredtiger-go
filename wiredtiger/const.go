@@ -3,12 +3,7 @@ package wiredtiger
 /*
 #cgo LDFLAGS: -lwiredtiger
 #include <wiredtiger.h>
-
-#ifdef WIN32
-#include <windows.h>
-#endif
-
-#include <errors.h>
+#include <errno.h>
 
 */
 import "C"
