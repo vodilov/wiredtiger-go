@@ -7,6 +7,7 @@ package wiredtiger
 import "C"
 
 // Error returns
+
 const (
 	WT_ROLLBACK      = int(C.WT_ROLLBACK)
 	WT_DUPLICATE_KEY = int(C.WT_DUPLICATE_KEY)

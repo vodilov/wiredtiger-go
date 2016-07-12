@@ -5,6 +5,8 @@ package wiredtiger
 #include <stdlib.h>
 #include "wiredtiger.h"
 
+typedef const void* CPVOID;
+
 int wiredtiger_cursor_close(WT_CURSOR *cursor) {
 	return cursor->close(cursor);
 }
@@ -41,30 +43,61 @@ int wiredtiger_cursor_reset(WT_CURSOR *cursor) {
 	return cursor->reset(cursor);
 }
 
-int wiredtiger_cursor_search(WT_CURSOR *cursor, WT_ITEM *key) {
-	cursor->set_key(cursor, key);
+int wiredtiger_cursor_search(WT_CURSOR *cursor, const void *data, size_t size) {
+	WT_ITEM key;
+
+	key.data = data;
+	key.size = size;
+
+	cursor->set_key(cursor, &key);
 	return cursor->search(cursor);
 }
 
-int wiredtiger_cursor_search_near(WT_CURSOR *cursor, WT_ITEM *key, int *exactp) {
-	cursor->set_key(cursor, key);
+int wiredtiger_cursor_search_near(WT_CURSOR *cursor, const void *data, size_t size, int *exactp) {
+	WT_ITEM key;
+
+	key.data = data;
+	key.size = size;
+
+	cursor->set_key(cursor, &key);
 	return cursor->search_near(cursor, exactp);
 }
 
-int wiredtiger_cursor_insert(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value) {
-	cursor->set_key(cursor, key);
-	cursor->set_value(cursor, value);
+int wiredtiger_cursor_insert(WT_CURSOR *cursor, const void *key_data, size_t key_size, const void *val_data, size_t val_size) {
+	WT_ITEM key, value;
+
+	key.data = key_data;
+	key.size = key_size;
+
+	value.data = val_data;
+	value.size = val_size;
+
+	cursor->set_key(cursor, &key);
+	cursor->set_value(cursor, &value);
 	return cursor->insert(cursor);
 }
 
-int wiredtiger_cursor_update(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value) {
-	cursor->set_key(cursor, key);
-	cursor->set_value(cursor, value);
+int wiredtiger_cursor_update(WT_CURSOR *cursor, const void *key_data, size_t key_size, const void *val_data, size_t val_size) {
+	WT_ITEM key, value;
+
+	key.data = key_data;
+	key.size = key_size;
+
+	value.data = val_data;
+	value.size = val_size;
+
+	cursor->set_key(cursor, &key);
+	cursor->set_value(cursor, &value);
 	return cursor->update(cursor);
 }
 
-int wiredtiger_cursor_remove(WT_CURSOR *cursor, WT_ITEM *key) {
-	cursor->set_key(cursor, key);
+int wiredtiger_cursor_remove(WT_CURSOR *cursor, const void *data, size_t size) {
+	WT_ITEM key;
+
+	key.data = data;
+	key.size = size;
+
+	cursor->set_key(cursor, &key);
 	return cursor->remove(cursor);
 }
 */
@@ -83,17 +116,15 @@ type Cursor struct {
 
 // General
 
-func (c *Cursor) Close() int {
-	result := int(C.wiredtiger_cursor_close(c.w))
-
-	if result == 0 {
-		c = nil
+func (c *Cursor) Close() error {
+	if res := int(C.wiredtiger_cursor_close(c.w)); res != 0 {
+		return NewError(res, c.session)
 	}
 
-	return result
+	return nil
 }
 
-func (c *Cursor) Reconfigure(config string) int {
+func (c *Cursor) Reconfigure(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -101,7 +132,11 @@ func (c *Cursor) Reconfigure(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_cursor_reconfigure(c.w, configC))
+	if res := int(C.wiredtiger_cursor_reconfigure(c.w, configC)); res != 0 {
+		return NewError(res, c.session)
+	}
+
+	return nil
 }
 
 func (c *Cursor) GetSession() *Session {
@@ -123,57 +158,59 @@ func (c *Cursor) GetValueFormat() string {
 // Data access
 // TODO: implement
 
-func (c *Cursor) GetKey(a ...interface{}) int {
+func (c *Cursor) GetKey(a ...interface{}) error {
 	if c.keyPack == nil {
 		var v C.WT_ITEM
 
-		if result := int(C.wiredtiger_cursor_get_key(c.w, &v)); result != 0 {
-			return result
+		if res := int(C.wiredtiger_cursor_get_key(c.w, &v)); res != 0 {
+			return NewError(res, c.session)
 		}
 
 		c.keyPack = C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
 	}
 
-	return UnPack(c.keyFormat, c.keyPack, a...)
+	return UnPack(c.session, c.keyFormat, c.keyPack, a...)
 }
 
-func (c *Cursor) GetValue(a ...interface{}) int {
+func (c *Cursor) GetValue(a ...interface{}) error {
 	if c.valuePack == nil {
 		var v C.WT_ITEM
 
-		if result := int(C.wiredtiger_cursor_get_value(c.w, &v)); result != 0 {
-			return result
+		if res := int(C.wiredtiger_cursor_get_value(c.w, &v)); res != 0 {
+			return NewError(res, c.session)
 		}
 
 		c.valuePack = C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
 	}
 
-	return UnPack(c.valueFormat, c.valuePack, a...)
+	return UnPack(c.session, c.valueFormat, c.valuePack, a...)
 }
 
-func (c *Cursor) SetKey(a ...interface{}) int {
-	b, res := Pack(c.keyFormat, a...)
+func (c *Cursor) SetKey(a ...interface{}) error {
+	b, res := Pack(c.session, c.keyFormat, a...)
 
-	if res == 0 {
-		c.keyPack = b
+	if res != nil {
+		return res
 	}
 
-	return res
+	c.keyPack = b
+	return nil
 }
 
-func (c *Cursor) SetValue(a ...interface{}) int {
-	b, res := Pack(c.valueFormat, a...)
+func (c *Cursor) SetValue(a ...interface{}) error {
+	b, res := Pack(c.session, c.valueFormat, a...)
 
-	if res == 0 {
-		c.valuePack = b
+	if res != nil {
+		return res
 	}
 
-	return res
+	c.valuePack = b
+	return nil
 }
 
 // Cursor positioning
 
-func (c *Cursor) Compare(other *Cursor) (compare_result, result int) {
+func (c *Cursor) Compare(other *Cursor) (int, error) {
 	var oc *C.WT_CURSOR
 	var compare_resultC C.int
 
@@ -181,16 +218,14 @@ func (c *Cursor) Compare(other *Cursor) (compare_result, result int) {
 		oc = other.w
 	}
 
-	result = int(C.wiredtiger_cursor_compare(c.w, oc, &compare_resultC))
-
-	if result == 0 {
-		compare_result = int(compare_resultC)
+	if res := int(C.wiredtiger_cursor_compare(c.w, oc, &compare_resultC)); res != 0 {
+		return 0, NewError(res, c.session)
 	}
 
-	return
+	return int(compare_resultC), nil
 }
 
-func (c *Cursor) Equals(other *Cursor) (compare_result bool, result int) {
+func (c *Cursor) Equals(other *Cursor) (bool, error) {
 	var oc *C.WT_CURSOR
 	var compare_resultC C.int
 
@@ -198,131 +233,141 @@ func (c *Cursor) Equals(other *Cursor) (compare_result bool, result int) {
 		oc = other.w
 	}
 
-	result = int(C.wiredtiger_cursor_equals(c.w, oc, &compare_resultC))
-
-	if result == 0 {
-		if compare_resultC == 0 {
-			compare_result = false
-		} else {
-			compare_result = true
-		}
+	if res := int(C.wiredtiger_cursor_equals(c.w, oc, &compare_resultC)); res != 0 {
+		return false, NewError(res, c.session)
 	}
 
-	return
-}
-
-func (c *Cursor) Next() int {
-	res := int(C.wiredtiger_cursor_next(c.w))
-
-	if res == 0 {
-		c.keyPack = nil
-		c.valuePack = nil
+	if compare_resultC == 0 {
+		return false, nil
 	}
 
-	return res
+	return true, nil
 }
 
-func (c *Cursor) Prev() int {
-	res := int(C.wiredtiger_cursor_prev(c.w))
-
-	if res == 0 {
-		c.keyPack = nil
-		c.valuePack = nil
+func (c *Cursor) Next() error {
+	if res := int(C.wiredtiger_cursor_next(c.w)); res != 0 {
+		return NewError(res, c.session)
 	}
 
-	return res
-}
-
-func (c *Cursor) Reset() int {
 	c.keyPack = nil
 	c.valuePack = nil
-	return int(C.wiredtiger_cursor_reset(c.w))
+	return nil
 }
 
-func (c *Cursor) Search() int {
-	var key C.WT_ITEM
+func (c *Cursor) Prev() error {
+	if res := int(C.wiredtiger_cursor_prev(c.w)); res != 0 {
+		return NewError(res, c.session)
+	}
+
+	c.keyPack = nil
+	c.valuePack = nil
+	return nil
+}
+
+func (c *Cursor) Reset() error {
+	c.keyPack = nil
+	c.valuePack = nil
+
+	if res := int(C.wiredtiger_cursor_reset(c.w)); res != 0 {
+		return NewError(res, c.session)
+	}
+
+	return nil
+}
+
+func (c *Cursor) Search() error {
+	var key_data unsafe.Pointer
+	var key_size C.size_t
 
 	if c.keyPack != nil && len(c.keyPack) > 0 {
-		key.data = unsafe.Pointer(&c.keyPack[0])
-		key.size = C.size_t(len(c.keyPack))
+		key_data = unsafe.Pointer(&c.keyPack[0])
+		key_size = C.size_t(len(c.keyPack))
 	}
 
-	res := int(C.wiredtiger_cursor_search(c.w, &key))
-
-	if res == 0 {
-		c.valuePack = nil
+	if res := int(C.wiredtiger_cursor_search(c.w, key_data, key_size)); res != 0 {
+		return NewError(res, c.session)
 	}
 
-	return res
+	c.valuePack = nil
+	return nil
 }
 
-func (c *Cursor) SearchNear() (compare_result, result int) {
+func (c *Cursor) SearchNear() (int, error) {
+	var key_data unsafe.Pointer
+	var key_size C.size_t
 	var compare_resultC C.int
-	var key C.WT_ITEM
 
 	if c.keyPack != nil && len(c.keyPack) > 0 {
-		key.data = unsafe.Pointer(&c.keyPack[0])
-		key.size = C.size_t(len(c.keyPack))
+		key_data = unsafe.Pointer(&c.keyPack[0])
+		key_size = C.size_t(len(c.keyPack))
 	}
 
-	result = int(C.wiredtiger_cursor_search_near(c.w, &key, &compare_resultC))
-
-	if result == 0 {
-		compare_result = int(compare_resultC)
-		c.keyPack = nil
-		c.valuePack = nil
+	if res := int(C.wiredtiger_cursor_search_near(c.w, key_data, key_size, &compare_resultC)); res != 0 {
+		return 0, NewError(res, c.session)
 	}
 
-	return
+	c.keyPack = nil
+	c.valuePack = nil
+	return int(compare_resultC), nil
 }
 
 // Data modification
 
-func (c *Cursor) Insert() int {
-	var key, val C.WT_ITEM
+func (c *Cursor) Insert() error {
+	var key_data, value_data unsafe.Pointer
+	var key_size, value_size C.size_t
 
 	if c.keyPack != nil && len(c.keyPack) > 0 {
-		key.data = unsafe.Pointer(&c.keyPack[0])
-		key.size = C.size_t(len(c.keyPack))
+		key_data = unsafe.Pointer(&c.keyPack[0])
+		key_size = C.size_t(len(c.keyPack))
 	}
 
 	if c.valuePack != nil && len(c.valuePack) > 0 {
-		val.data = unsafe.Pointer(&c.valuePack[0])
-		val.size = C.size_t(len(c.valuePack))
+		value_data = unsafe.Pointer(&c.valuePack[0])
+		value_size = C.size_t(len(c.valuePack))
 	}
 
-	return int(C.wiredtiger_cursor_insert(c.w, &key, &val))
+	if res := int(C.wiredtiger_cursor_insert(c.w, key_data, key_size, value_data, value_size)); res != 0 {
+		return NewError(res, c.session)
+	}
+
+	return nil
 }
 
-func (c *Cursor) Update() int {
-	var key, val C.WT_ITEM
+func (c *Cursor) Update() error {
+	var key_data, value_data unsafe.Pointer
+	var key_size, value_size C.size_t
 
 	if c.keyPack != nil && len(c.keyPack) > 0 {
-		key.data = unsafe.Pointer(&c.keyPack[0])
-		key.size = C.size_t(len(c.keyPack))
+		key_data = unsafe.Pointer(&c.keyPack[0])
+		key_size = C.size_t(len(c.keyPack))
 	}
 
 	if c.valuePack != nil && len(c.valuePack) > 0 {
-		val.data = unsafe.Pointer(&c.valuePack[0])
-		val.size = C.size_t(len(c.valuePack))
+		value_data = unsafe.Pointer(&c.valuePack[0])
+		value_size = C.size_t(len(c.valuePack))
 	}
 
-	return int(C.wiredtiger_cursor_update(c.w, &key, &val))
+	if res := int(C.wiredtiger_cursor_update(c.w, key_data, key_size, value_data, value_size)); res != 0 {
+		return NewError(res, c.session)
+	}
+
+	return nil
 }
 
-func (c *Cursor) Remove() int {
-	var key C.WT_ITEM
+func (c *Cursor) Remove() error {
+	var key_data unsafe.Pointer
+	var key_size C.size_t
 
 	if c.keyPack != nil && len(c.keyPack) > 0 {
-		key.data = unsafe.Pointer(&c.keyPack[0])
-		key.size = C.size_t(len(c.keyPack))
+		key_data = unsafe.Pointer(&c.keyPack[0])
+		key_size = C.size_t(len(c.keyPack))
 	}
 
-	res := int(C.wiredtiger_cursor_remove(c.w, &key))
-
-	if res == 0 {
-		c.valuePack = nil
+	if res := int(C.wiredtiger_cursor_remove(c.w, key_data, key_size)); res != 0 {
+		return NewError(res, c.session)
 	}
 
-	return res
+	c.valuePack = nil
+	return nil
 }

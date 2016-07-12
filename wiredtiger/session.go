@@ -123,7 +123,7 @@ type Session struct {
 
 // General
 
-func (s *Session) Close(config string) int {
+func (s *Session) Close(config string) error {
 	var configC *C.char
 
 	if len(config) > 0 {
@@ -135,12 +135,13 @@ func (s *Session) Close(config string) int {
 
 	if result == 0 {
 		s.w = nil
+		return nil
 	}
 
-	return result
+	return NewError(result, nil)
 }
 
-func (s *Session) Reconfigure(config string) int {
+func (s *Session) Reconfigure(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -148,11 +149,23 @@ func (s *Session) Reconfigure(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_reconfigure(s.w, configC))
+	res := int(C.wiredtiger_session_reconfigure(s.w, configC))
+
+	if res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Error(errnum int) string {
-	return C.GoString(C.wiredtiger_session_strerror(s.w, C.int(errnum)))
+func (s *Session) strerror(errnum int) string {
+	txt := C.wiredtiger_session_strerror(s.w, C.int(errnum))
+	if txt != nil {
+		return C.GoString(C.wiredtiger_session_strerror(s.w, C.int(errnum)))
+	} else {
+		return ""
+	}
+
 }
 
 func (s *Session) GetConnection() *Connection {
@@ -161,7 +174,7 @@ func (s *Session) GetConnection() *Connection {
 
 // Cursor handles
 
-func (s *Session) OpenCursor(uri string, to_dup *Cursor, config string) (newcursor *Cursor, result int) {
+func (s *Session) OpenCursor(uri string, to_dup *Cursor, config string) (*Cursor, error) {
 	var w *C.WT_CURSOR
 	var uriC *C.char = nil
 	var configC *C.char = nil
@@ -181,23 +194,25 @@ func (s *Session) OpenCursor(uri string, to_dup *Cursor, config string) (newcurs
 		wc = to_dup.w
 	}
 
-	result = int(C.wiredtiger_session_open_cursor(s.w, uriC, wc, configC, &w))
+	res := int(C.wiredtiger_session_open_cursor(s.w, uriC, wc, configC, &w))
 
-	if result == 0 {
-		newcursor = new(Cursor)
+	if res == 0 {
+		newcursor := new(Cursor)
 		newcursor.w = w
 		newcursor.session = s
 		newcursor.uri = C.GoString(w.uri)
 		newcursor.keyFormat = C.GoString(w.key_format)
 		newcursor.valueFormat = C.GoString(w.value_format)
+
+		return newcursor, nil
 	}
 
-	return
+	return nil, NewError(res, s)
 }
 
 // Table operations
 
-func (s *Session) Create(name, config string) int {
+func (s *Session) Create(name, config string) error {
 	var nameC *C.char
 	var configC *C.char
 
@@ -211,10 +226,14 @@ func (s *Session) Create(name, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_create(s.w, nameC, configC))
+	if res := int(C.wiredtiger_session_create(s.w, nameC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Compact(name, config string) int {
+func (s *Session) Compact(name, config string) error {
 	var nameC *C.char
 	var configC *C.char
 
@@ -228,10 +247,14 @@ func (s *Session) Compact(name, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_compact(s.w, nameC, configC))
+	if res := int(C.wiredtiger_session_compact(s.w, nameC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Drop(name, config string) int {
+func (s *Session) Drop(name, config string) error {
 	var nameC *C.char
 	var configC *C.char
 
@@ -245,10 +268,14 @@ func (s *Session) Drop(name, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_drop(s.w, nameC, configC))
+	if res := int(C.wiredtiger_session_drop(s.w, nameC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Join(join_cursor *Cursor, ref_cursor *Cursor, config string) int {
+func (s *Session) Join(join_cursor *Cursor, ref_cursor *Cursor, config string) error {
 	var w_join_cursor, w_ref_cursor *C.WT_CURSOR
 	var configC *C.char
 
@@ -265,10 +292,14 @@ func (s *Session) Join(join_cursor *Cursor, ref_cursor *Cursor, config string) i
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_join(s.w, w_join_cursor, w_ref_cursor, configC))
+	if res := int(C.wiredtiger_session_join(s.w, w_join_cursor, w_ref_cursor, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) LogFlush(config string) int {
+func (s *Session) LogFlush(config string) error {
 	var configC *C.char
 
 	if len(config) > 0 {
@@ -276,23 +307,31 @@ func (s *Session) LogFlush(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_log_flush(s.w, configC))
+	if res := int(C.wiredtiger_session_log_flush(s.w, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) LogInsertMessage(message string) int {
+func (s *Session) LogInsertMessage(message string) error {
 	var messageC *C.char
 
 	if len(message) > 0 {
 		messageC = C.CString(message)
 		defer C.free(unsafe.Pointer(messageC))
 	} else {
-		return 0
+		return nil
 	}
 
-	return int(C.wiredtiger_session_log_insert_message(s.w, messageC))
+	if res := int(C.wiredtiger_session_log_insert_message(s.w, messageC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Rebalance(uri, config string) int {
+func (s *Session) Rebalance(uri, config string) error {
 	var uriC *C.char
 	var configC *C.char
 
@@ -306,10 +345,14 @@ func (s *Session) Rebalance(uri, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_rebalance(s.w, uriC, configC))
+	if res := int(C.wiredtiger_session_rebalance(s.w, uriC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Rename(uri, newuri, config string) int {
+func (s *Session) Rename(uri, newuri, config string) error {
 	var uriC *C.char
 	var newuriC *C.char
 	var configC *C.char
@@ -329,14 +372,22 @@ func (s *Session) Rename(uri, newuri, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_rename(s.w, uriC, newuriC, configC))
+	if res := int(C.wiredtiger_session_rename(s.w, uriC, newuriC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Reset() int {
-	return int(C.wiredtiger_session_reset(s.w))
+func (s *Session) Reset() error {
+	if res := int(C.wiredtiger_session_reset(s.w)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Salvage(name, config string) int {
+func (s *Session) Salvage(name, config string) error {
 	var nameC *C.char
 	var configC *C.char
 
@@ -350,10 +401,14 @@ func (s *Session) Salvage(name, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_salvage(s.w, nameC, configC))
+	if res := int(C.wiredtiger_session_salvage(s.w, nameC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Truncate(name string, start *Cursor, stop *Cursor, config string) int {
+func (s *Session) Truncate(name string, start *Cursor, stop *Cursor, config string) error {
 	var sc, ec *C.WT_CURSOR
 	var nameC *C.char
 	var configC *C.char
@@ -376,10 +431,14 @@ func (s *Session) Truncate(name string, start *Cursor, stop *Cursor, config stri
 		ec = stop.w
 	}
 
-	return int(C.wiredtiger_session_truncate(s.w, nameC, sc, ec, configC))
+	if res := int(C.wiredtiger_session_truncate(s.w, nameC, sc, ec, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Upgrade(name, config string) int {
+func (s *Session) Upgrade(name, config string) error {
 	var nameC *C.char
 	var configC *C.char
 
@@ -393,10 +452,14 @@ func (s *Session) Upgrade(name, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_upgrade(s.w, nameC, configC))
+	if res := int(C.wiredtiger_session_upgrade(s.w, nameC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Verify(name, config string) int {
+func (s *Session) Verify(name, config string) error {
 	var nameC *C.char
 	var configC *C.char
 
@@ -410,12 +473,16 @@ func (s *Session) Verify(name, config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_verify(s.w, nameC, configC))
+	if res := int(C.wiredtiger_session_verify(s.w, nameC, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
 // Transactions
 
-func (s *Session) BeginTransaction(config string) int {
+func (s *Session) BeginTransaction(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -423,10 +490,14 @@ func (s *Session) BeginTransaction(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_begin_transaction(s.w, configC))
+	if res := int(C.wiredtiger_session_begin_transaction(s.w, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) CommitTransaction(config string) int {
+func (s *Session) CommitTransaction(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -434,10 +505,14 @@ func (s *Session) CommitTransaction(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_commit_transaction(s.w, configC))
+	if res := int(C.wiredtiger_session_commit_transaction(s.w, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) RollbackTransaction(config string) int {
+func (s *Session) RollbackTransaction(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -445,10 +520,14 @@ func (s *Session) RollbackTransaction(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_rollback_transaction(s.w, configC))
+	if res := int(C.wiredtiger_session_rollback_transaction(s.w, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Checkpoint(config string) int {
+func (s *Session) Checkpoint(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -456,10 +535,14 @@ func (s *Session) Checkpoint(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_checkpoint(s.w, configC))
+	if res := int(C.wiredtiger_session_checkpoint(s.w, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) Snapshot(config string) int {
+func (s *Session) Snapshot(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -467,22 +550,25 @@ func (s *Session) Snapshot(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_snapshot(s.w, configC))
+	if res := int(C.wiredtiger_session_snapshot(s.w, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }
 
-func (s *Session) TransactionPinnedRange(pined_range *uint64) int {
+func (s *Session) TransactionPinnedRange(pined_range *uint64) error {
 	var pined_rangeC C.uint64_t
 
-	result := int(C.wiredtiger_session_transaction_pinned_range(s.w, &pined_rangeC))
-
-	if result == 0 {
-		*pined_range = uint64(pined_rangeC)
+	if res := int(C.wiredtiger_session_transaction_pinned_range(s.w, &pined_rangeC)); res != 0 {
+		return NewError(res, s)
 	}
 
-	return result
+	*pined_range = uint64(pined_rangeC)
+	return nil
 }
 
-func (s *Session) TransactionSync(config string) int {
+func (s *Session) TransactionSync(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
@@ -490,5 +576,9 @@ func (s *Session) TransactionSync(config string) int {
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_session_transaction_sync(s.w, configC))
+	if res := int(C.wiredtiger_session_transaction_sync(s.w, configC)); res != 0 {
+		return NewError(res, s)
+	}
+
+	return nil
 }

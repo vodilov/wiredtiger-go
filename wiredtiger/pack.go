@@ -73,6 +73,8 @@ import "unicode"
 import "strings"
 import "bytes"
 
+//import "fmt"
+
 type wtpack struct {
 	pfmt     *string
 	curIdx   int
@@ -88,7 +90,7 @@ func (p *wtpack) start(pfmt *string) int {
 	}
 
 	if (*pfmt)[0] == '@' || (*pfmt)[0] == '<' || (*pfmt)[0] == '>' {
-		return int(syscall.EINVAL)
+		return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 	}
 
 	if (*pfmt)[0] == '.' {
@@ -96,7 +98,7 @@ func (p *wtpack) start(pfmt *string) int {
 	}
 
 	if p.curIdx == len(*pfmt) {
-		return int(syscall.EINVAL)
+		return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 	}
 
 	p.pfmt = pfmt
@@ -126,7 +128,7 @@ pfmt_next:
 		}
 
 		if p.curIdx == len(*p.pfmt) {
-			return int(syscall.EINVAL)
+			return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 	} else {
 		p.havesize = false
@@ -140,12 +142,12 @@ pfmt_next:
 	case 's':
 		/* Fixed length strings must be at least 1 byte */
 		if p.size < 1 {
-			return int(syscall.EINVAL)
+			return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 	case 't':
 		/* Bitfield sizes must be between 1 and 8 bits */
 		if p.size < 1 || p.size > 8 {
-			return int(syscall.EINVAL)
+			return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 	case 'u', 'U':
 		/* Special case for items with a size prefix. */
@@ -163,7 +165,7 @@ pfmt_next:
 		p.havesize = false
 		p.repeats = p.size - 1
 	default:
-		return int(syscall.EINVAL)
+		return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 	}
 
 	p.curIdx++
@@ -181,7 +183,7 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 	case 'S', 's':
 		v, ok := i.(string)
 		if ok == false {
-			return 0, int(syscall.EINVAL)
+			return 0, int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		if p.vtype == 's' || p.havesize == true {
@@ -192,12 +194,13 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 				return s + 1, 0
 			}
 
-			return len(v), 0
+			return len(v) + 1, 0
 		}
 	case 'u', 'U':
 		v, ok := i.([]byte)
 		if ok == false {
-			return 0, int(syscall.EINVAL)
+			panic(0)
+			return 0, int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		s := len(v)
@@ -218,13 +221,15 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 
 	case 'b':
 		if _, ok := i.(int8); ok == false {
-			return 0, int(syscall.EINVAL)
+			panic(0)
+			return 0, int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		return 1, 0
 	case 'B', 't':
 		if _, ok := i.(byte); ok == false {
-			return 0, int(syscall.EINVAL)
+			panic(0)
+			return 0, int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		return 1, 0
@@ -238,7 +243,8 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 		case int64:
 			return vsize_int(v), 0
 		default:
-			return 0, int(syscall.EINVAL)
+			panic(0)
+			return 0, int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 	case 'H', 'I', 'L', 'Q', 'r':
@@ -250,11 +256,13 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 		case uint64:
 			return vsize_uint(v), 0
 		default:
-			return 0, int(syscall.EINVAL)
+			panic(0)
+			return 0, int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 	default:
-		return 0, int(syscall.EINVAL)
+		panic(0)
+		return 0, int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 	}
 }
 
@@ -349,7 +357,7 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 		var s int
 		v, ok := i.(*string)
 		if ok == false {
-			return int(syscall.EINVAL)
+			return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		if p.vtype == 's' || p.havesize == true {
@@ -366,14 +374,14 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 				*v = string(buf[*bcur : *bcur+s])
 				*bcur += s + 1
 			default:
-				return int(syscall.EINVAL)
+				return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 			}
 		}
 	case 'u', 'U':
 		var s int
 		v, ok := i.(*[]byte)
 		if ok == false {
-			return int(syscall.EINVAL)
+			return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		switch {
@@ -396,7 +404,7 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 	case 'b':
 		v, ok := i.(*int8)
 		if ok == false {
-			return int(syscall.EINVAL)
+			return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		*v = int8(buf[*bcur] ^ 0x80)
@@ -405,7 +413,7 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 	case 'B', 't':
 		v, ok := i.(*uint8)
 		if ok == false {
-			return int(syscall.EINVAL)
+			return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 		}
 
 		*v = buf[*bcur]
@@ -423,7 +431,7 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 			case *int64:
 				*v = int64(vc)
 			default:
-				return int(syscall.EINVAL)
+				return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 			}
 		}
 	case 'H', 'I', 'L', 'Q', 'r':
@@ -438,17 +446,17 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 			case *uint64:
 				*v = uint64(vc)
 			default:
-				return int(syscall.EINVAL)
+				return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 			}
 		}
 	default:
-		return int(syscall.EINVAL)
+		return int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 	}
 
 	return 0
 }
 
-func Pack(pfmt string, a ...interface{}) ([]byte, int) {
+func Pack(session *Session, pfmt string, a ...interface{}) ([]byte, error) {
 	var res int
 	var total int
 	var cidx int
@@ -457,9 +465,11 @@ func Pack(pfmt string, a ...interface{}) ([]byte, int) {
 
 	wtp := new(wtpack)
 	if res = wtp.start(&pfmt); res != 0 {
-		return nil, res
+		return nil, NewError(res, session)
 	}
 
+	//	fmt.Print(pfmt, "->")
+	//	fmt.Println(a...)
 	res = wtp.next()
 	for res == 0 {
 		if wtp.vtype == 'x' {
@@ -470,7 +480,8 @@ func Pack(pfmt string, a ...interface{}) ([]byte, int) {
 		}
 
 		if cidx == pcnt {
-			res = int(syscall.EINVAL)
+			res = int(syscall.EINVAL - syscall.APPLICATION_ERROR)
+			panic(0)
 			break
 		}
 
@@ -487,11 +498,11 @@ func Pack(pfmt string, a ...interface{}) ([]byte, int) {
 	}
 
 	if res != 0 && res != WT_NOTFOUND {
-		return nil, res
+		return nil, NewError(res, session)
 	}
 
 	if total == 0 {
-		return nil, int(syscall.EINVAL)
+		return nil, NewError(int(syscall.EINVAL-syscall.APPLICATION_ERROR), session)
 	}
 
 	rarray := make([]byte, 0, total)
@@ -513,13 +524,13 @@ func Pack(pfmt string, a ...interface{}) ([]byte, int) {
 	}
 
 	if res != 0 && res != WT_NOTFOUND {
-		return nil, res
+		return nil, NewError(res, session)
 	}
 
-	return rarray, 0
+	return rarray, nil
 }
 
-func UnPack(pfmt string, buf []byte, a ...interface{}) int {
+func UnPack(session *Session, pfmt string, buf []byte, a ...interface{}) error {
 	var res int
 	var cidx int
 	var bcur int
@@ -528,12 +539,12 @@ func UnPack(pfmt string, buf []byte, a ...interface{}) int {
 	bend := len(buf)
 
 	if bend == 0 {
-		return int(syscall.EINVAL)
+		return NewError(int(syscall.EINVAL-syscall.APPLICATION_ERROR), session)
 	}
 
 	wtp := new(wtpack)
 	if res = wtp.start(&pfmt); res != 0 {
-		return int(syscall.EINVAL)
+		return NewError(int(syscall.EINVAL-syscall.APPLICATION_ERROR), session)
 	}
 
 	res = wtp.next()
@@ -545,7 +556,7 @@ func UnPack(pfmt string, buf []byte, a ...interface{}) int {
 		}
 
 		if pcnt == 0 {
-			res = int(syscall.EINVAL)
+			res = int(syscall.EINVAL - syscall.APPLICATION_ERROR)
 			break
 		}
 
@@ -557,10 +568,10 @@ func UnPack(pfmt string, buf []byte, a ...interface{}) int {
 	}
 
 	if res != 0 && res != WT_NOTFOUND {
-		return res
+		return NewError(res, session)
 	}
 
-	return 0
+	return nil
 }
 
 func initPackTest() int {
@@ -597,4 +608,139 @@ func generalPackTest() []byte {
 	C.packtest_general()
 
 	return getResultPackTest()
+}
+
+func PackInterface(a ...interface{}) []byte {
+	var buf []byte
+	if a == nil || len(a) == 0 {
+		return nil
+	}
+
+	lastArg := len(a) - 1
+
+	for i, arg := range a {
+
+		switch v := arg.(type) {
+		case string:
+			s := strings.IndexByte(v, 0)
+			if s != -1 {
+				buf = append(buf, v[:s+1]...)
+				buf = append(buf, byte(0))
+			} else {
+				buf = append(buf, v...)
+			}
+		case []byte:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			buf = append(buf, v...)
+		case int8:
+			buf = append(buf, byte(uint8(v)^0x80))
+		case byte:
+			buf = append(buf, v)
+		case int16:
+			buf = vpack_int(buf, int64(v))
+		case int32:
+			buf = vpack_int(buf, int64(v))
+		case int64:
+			buf = vpack_int(buf, v)
+		case uint16:
+			buf = vpack_uint(buf, uint64(v))
+		case uint32:
+			buf = vpack_uint(buf, uint64(v))
+		case uint64:
+			buf = vpack_uint(buf, v)
+		}
+	}
+
+	return buf
+}
+
+func UnPackInterface(session *Session, buf []byte, a ...interface{}) error {
+	var bcur int
+
+	if len(buf) == 0 || a == nil || len(a) == 0 {
+		return nil
+	}
+
+	lastArg := len(a) - 1
+	bend := len(buf)
+
+	for i, arg := range a {
+		switch v := arg.(type) {
+		case *string:
+			s := bytes.IndexByte(buf[bcur:], 0)
+			switch {
+			case s == 0:
+				*v = ""
+				bcur++
+			case s > 0:
+				*v = string(buf[bcur : bcur+s])
+				bcur += s + 1
+			default:
+				return NewError(int(syscall.EINVAL-syscall.APPLICATION_ERROR), session)
+			}
+		case *[]byte:
+			var s int
+
+			if i != lastArg {
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+			} else {
+				s = bend - bcur
+			}
+
+			*v = buf[bcur : bcur+s]
+			bcur += s
+		case *int8:
+			*v = int8(buf[bcur] ^ 0x80)
+			bcur++
+		case *byte:
+			*v = buf[bcur]
+			bcur++
+		case *int16:
+			if vc, r := vunpack_int(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = int16(vc)
+			}
+		case *int32:
+			if vc, r := vunpack_int(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = int32(vc)
+			}
+		case *int64:
+			if vc, r := vunpack_int(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = vc
+			}
+		case *uint16:
+			if vc, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = uint16(vc)
+			}
+		case *uint32:
+			if vc, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = uint32(vc)
+			}
+		case *uint64:
+			if vc, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = vc
+			}
+		default:
+			return NewError(int(syscall.EINVAL-syscall.APPLICATION_ERROR), session)
+		}
+	}
+
+	return nil
 }

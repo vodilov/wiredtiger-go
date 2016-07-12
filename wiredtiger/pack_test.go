@@ -24,8 +24,8 @@ func intTest(t *testing.T, v int64) {
 	b2 := intPackTest(v)
 
 	switch {
-	case e > 0:
-		t.Errorf("Expected something, got error %d", e)
+	case e != nil:
+		t.Errorf("Expected something, got error: %v", e)
 	case b == nil:
 		t.Error("Expected []byte, nil return.")
 	case len(b) == 0:
@@ -34,8 +34,8 @@ func intTest(t *testing.T, v int64) {
 		e = UnPack("q", b, &rv)
 
 		switch {
-		case e > 0:
-			t.Error("Expected something, got error ", e)
+		case e != nil:
+			t.Errorf("Expected something, got error: %v ", e)
 		case rv != v || bytes.Compare(b, b2) != 0:
 			t.Errorf("Returned unexpected value %d != %d\n% x\n% x", v, rv, b, b2)
 		default:
@@ -51,8 +51,8 @@ func uintTest(t *testing.T, v uint64) {
 	b2 := uintPackTest(v)
 
 	switch {
-	case e > 0:
-		t.Errorf("Expected something, got error %d", e)
+	case e != nil:
+		t.Errorf("Expected something, got error %v", e)
 	case b == nil:
 		t.Error("Expected []byte, nil return.")
 	case len(b) == 0:
@@ -61,8 +61,8 @@ func uintTest(t *testing.T, v uint64) {
 		e = UnPack("Q", b, &rv)
 
 		switch {
-		case e > 0:
-			t.Error("Expected something, got error ", e)
+		case e != nil:
+			t.Errorf("Expected something, got error: %v", e)
 		case rv != v || bytes.Compare(b, b2) != 0:
 			t.Errorf("Returned unexpected value %d != %d\n% x\n% x", v, rv, b, b2)
 		default:
@@ -132,8 +132,8 @@ func TestPack(t *testing.T) {
 	b2 := generalPackTest()
 
 	switch {
-	case e > 0:
-		t.Errorf("Expected something, got error %d", e)
+	case e != nil:
+		t.Errorf("Expected something, got error: %v", e)
 	case b == nil:
 		t.Error("Expected []byte, nil return.")
 	case len(b) == 0:
@@ -150,8 +150,8 @@ func TestPack(t *testing.T) {
 		e = UnPack("xbBq3sSuu", b, &v1, &v2, &v3, &v4, &v5, &v6, &v7)
 
 		switch {
-		case e > 0:
-			t.Error("Expected something, got error ", e)
+		case e != nil:
+			t.Errorf("Expected something, got error: %v", e)
 			fallthrough
 		default:
 			t.Logf("Values % x", b)
@@ -167,8 +167,8 @@ func TestOpen(t *testing.T) {
 
 	con, res := Open("data", "create")
 
-	if res != 0 {
-		t.Errorf("Got error while open database: %d", res)
+	if res != nil {
+		t.Errorf("Got error while open database: %v", res)
 		return
 	}
 
@@ -176,8 +176,8 @@ func TestOpen(t *testing.T) {
 
 	session, er2 := con.OpenSession("")
 
-	if er2 != 0 {
-		t.Errorf("Got error while open session: %d", er2)
+	if er2 != nil {
+		t.Errorf("Got error while open session: %v", er2)
 		return
 	}
 
@@ -185,15 +185,15 @@ func TestOpen(t *testing.T) {
 
 	er3 := session.Create("table:access", "key_format=S,value_format=S")
 
-	if er3 != 0 {
-		t.Errorf("Got error while open session: %d", er3)
+	if er3 != nil {
+		t.Errorf("Got error while open session: %v", er3)
 		return
 	}
 
 	cursor, er4 := session.OpenCursor("table:access", nil, "")
 
-	if er4 != 0 {
-		t.Errorf("Got error while open cursor: %d", er4)
+	if er4 != nil {
+		t.Errorf("Got error while open cursor: %v", er4)
 		return
 	}
 

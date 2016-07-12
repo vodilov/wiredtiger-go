@@ -38,33 +38,42 @@ type Connection struct {
 }
 
 // General
-func (c *Connection) Close(config string) int {
+func (c *Connection) Close(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
-		configC := C.CString(config)
+		configC = C.CString(config)
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_connection_close(c.w, configC))
+	if res := int(C.wiredtiger_connection_close(c.w, configC)); res == 0 {
+		c.w = nil
+		return nil
+	} else {
+		return NewError(res, nil)
+	}
 }
 
-func (c *Connection) Reconfigure(config string) int {
+func (c *Connection) Reconfigure(config string) error {
 	var configC *C.char = nil
 
 	if len(config) > 0 {
-		configC := C.CString(config)
+		configC = C.CString(config)
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	return int(C.wiredtiger_connection_reconfigure(c.w, configC))
+	if res := int(C.wiredtiger_connection_reconfigure(c.w, configC)); res != 0 {
+		return NewError(res, nil)
+	}
+
+	return nil
 }
 
 func (c *Connection) GetHome() string {
 	return C.GoString(C.wiredtiger_connection_get_home(c.w))
 }
 
-func (c *Connection) ConfigureMethod(method, uri, config, mtype, check string) int {
+func (c *Connection) ConfigureMethod(method, uri, config, mtype, check string) error {
 	var methodC *C.char = nil
 	var uriC *C.char = nil
 	var configC *C.char = nil
@@ -72,37 +81,39 @@ func (c *Connection) ConfigureMethod(method, uri, config, mtype, check string) i
 	var checkC *C.char = nil
 
 	if len(method) > 0 {
-		methodC := C.CString(method)
+		methodC = C.CString(method)
 		defer C.free(unsafe.Pointer(methodC))
 	}
 
 	if len(uri) > 0 {
-		uriC := C.CString(uri)
+		uriC = C.CString(uri)
 		defer C.free(unsafe.Pointer(uriC))
 	}
 
 	if len(config) > 0 {
-		configC := C.CString(config)
+		configC = C.CString(config)
 		defer C.free(unsafe.Pointer(configC))
 	}
 
 	if len(mtype) > 0 {
-		mtypeC := C.CString(mtype)
+		mtypeC = C.CString(mtype)
 		defer C.free(unsafe.Pointer(mtypeC))
 	}
 
 	if len(check) > 0 {
-		checkC := C.CString(check)
+		checkC = C.CString(check)
 		defer C.free(unsafe.Pointer(checkC))
 	}
 
-	return int(C.wiredtiger_connection_configure_method(c.w, methodC, uriC, configC, mtypeC, checkC))
+	if res := int(C.wiredtiger_connection_configure_method(c.w, methodC, uriC, configC, mtypeC, checkC)); res != 0 {
+		return NewError(res, nil)
+	}
+
+	return nil
 }
 
 func (c *Connection) IsNew() bool {
-	result := int(C.wiredtiger_connection_is_new(c.w))
-
-	if result == 0 {
+	if res := int(C.wiredtiger_connection_is_new(c.w)); res == 0 {
 		return false
 	}
 
@@ -110,24 +121,24 @@ func (c *Connection) IsNew() bool {
 }
 
 // Session handles
-func (c *Connection) OpenSession(config string) (newsession *Session, result int) {
+func (c *Connection) OpenSession(config string) (*Session, error) {
 	var w *C.WT_SESSION
 	var configC *C.char = nil
 
 	if len(config) > 0 {
-		configC := C.CString(config)
+		configC = C.CString(config)
 		defer C.free(unsafe.Pointer(configC))
 	}
 
-	result = int(C.wiredtiger_connection_open_session(c.w, nil, configC, &w))
-
-	if result == 0 {
-		newsession = new(Session)
-		newsession.w = w
-		newsession.conn = c
+	if res := int(C.wiredtiger_connection_open_session(c.w, nil, configC, &w)); res != 0 {
+		return nil, NewError(res, nil)
 	}
 
-	return
+	newsession := new(Session)
+	newsession.w = w
+	newsession.conn = c
+
+	return newsession, nil
 }
 
 // TODO: Extension
