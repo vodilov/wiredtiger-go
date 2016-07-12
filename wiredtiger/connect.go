@@ -3,7 +3,7 @@ package wiredtiger
 /*
 #cgo LDFLAGS: -lwiredtiger
 #include <stdlib.h>
-#include "wiredtiger.h"
+#include <wiredtiger.h>
 
 
 int wiredtiger_connection_close(WT_CONNECTION *connection, const char *config) {

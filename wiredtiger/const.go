@@ -2,7 +2,7 @@ package wiredtiger
 
 /*
 #cgo LDFLAGS: -lwiredtiger
-#include "wiredtiger.h"
+#include <wiredtiger.h>
 */
 import "C"
 

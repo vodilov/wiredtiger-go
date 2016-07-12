@@ -3,7 +3,7 @@ package wiredtiger
 /*
 #cgo LDFLAGS: -lwiredtiger
 #include <stdlib.h>
-#include "wiredtiger.h"
+#include <wiredtiger.h>
 
 int wiredtiger_session_close(WT_SESSION *session, const char *config) {
 	return session->close(session, config);

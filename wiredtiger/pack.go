@@ -3,7 +3,7 @@ package wiredtiger
 /*
 #cgo LDFLAGS: -lwiredtiger
 #include <stdlib.h>
-#include "wiredtiger.h"
+#include <wiredtiger.h>
 
 char buf[4096];
 size_t buf_size = 0;
