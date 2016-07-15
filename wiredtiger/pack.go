@@ -13,13 +13,13 @@ WT_SESSION *session = NULL;
 
 
 int packtest_init() {
-        int ret;
+	int ret;
 
-		if (ret = wiredtiger_open(NULL, NULL, "create", &conn))
-			return ret;
+	if (ret = wiredtiger_open(NULL, NULL, "create", &conn))
+		return ret;
 
-        if (ret = conn->open_session(conn, NULL, NULL, &session))
-			return ret;
+	if (ret = conn->open_session(conn, NULL, NULL, &session))
+		return ret;
 }
 
 int packtest_deinit() {
@@ -235,6 +235,8 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 
 	case 'h', 'i', 'l', 'q':
 		switch v := i.(type) {
+		case int:
+			return vsize_int(int64(v)), 0
 		case int16:
 			return vsize_int(int64(v)), 0
 		case int32:
@@ -248,6 +250,8 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 
 	case 'H', 'I', 'L', 'Q', 'r':
 		switch v := i.(type) {
+		case uint:
+			return vsize_uint(uint64(v)), 0
 		case uint16:
 			return vsize_uint(uint64(v)), 0
 		case uint32:
@@ -327,6 +331,8 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 		buf = append(buf, v)
 	case 'h', 'i', 'l', 'q':
 		switch v := i.(type) {
+		case int:
+			buf = vpack_int(buf, int64(v))
 		case int16:
 			buf = vpack_int(buf, int64(v))
 		case int32:
@@ -336,6 +342,8 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 		}
 	case 'H', 'I', 'L', 'Q', 'r':
 		switch v := i.(type) {
+		case uint:
+			buf = vpack_uint(buf, uint64(v))
 		case uint16:
 			buf = vpack_uint(buf, uint64(v))
 		case uint32:
@@ -423,6 +431,8 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 			return r
 		} else {
 			switch v := i.(type) {
+			case *int:
+				*v = int(vc)
 			case *int16:
 				*v = int16(vc)
 			case *int32:
@@ -438,6 +448,8 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 			return r
 		} else {
 			switch v := i.(type) {
+			case *uint:
+				*v = uint(vc)
 			case *uint16:
 				*v = uint16(vc)
 			case *uint32:
@@ -497,11 +509,12 @@ func Pack(session *Session, pfmt string, a ...interface{}) ([]byte, error) {
 	}
 
 	if res != 0 && res != WT_NOTFOUND {
+		panic(NewError(res, session))
 		return nil, NewError(res, session)
 	}
 
 	if total == 0 {
-		return nil, NewError(EINVAL, session)
+		return nil, nil
 	}
 
 	rarray := make([]byte, 0, total)
@@ -618,7 +631,6 @@ func PackInterface(a ...interface{}) []byte {
 	lastArg := len(a) - 1
 
 	for i, arg := range a {
-
 		switch v := arg.(type) {
 		case string:
 			s := strings.IndexByte(v, 0)
@@ -637,18 +649,24 @@ func PackInterface(a ...interface{}) []byte {
 			buf = append(buf, byte(uint8(v)^0x80))
 		case byte:
 			buf = append(buf, v)
+		case int:
+			buf = vpack_int(buf, int64(v))
 		case int16:
 			buf = vpack_int(buf, int64(v))
 		case int32:
 			buf = vpack_int(buf, int64(v))
 		case int64:
 			buf = vpack_int(buf, v)
+		case uint:
+			buf = vpack_uint(buf, uint64(v))
 		case uint16:
 			buf = vpack_uint(buf, uint64(v))
 		case uint32:
 			buf = vpack_uint(buf, uint64(v))
 		case uint64:
 			buf = vpack_uint(buf, v)
+		default:
+			return nil
 		}
 	}
 
@@ -700,6 +718,12 @@ func UnPackInterface(session *Session, buf []byte, a ...interface{}) error {
 		case *byte:
 			*v = buf[bcur]
 			bcur++
+		case *int:
+			if vc, r := vunpack_int(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = int(vc)
+			}
 		case *int16:
 			if vc, r := vunpack_int(buf, &bcur, bend); r != 0 {
 				return NewError(r, session)
@@ -717,6 +741,12 @@ func UnPackInterface(session *Session, buf []byte, a ...interface{}) error {
 				return NewError(r, session)
 			} else {
 				*v = vc
+			}
+		case *uint:
+			if vc, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+				return NewError(r, session)
+			} else {
+				*v = uint(vc)
 			}
 		case *uint16:
 			if vc, r := vunpack_uint(buf, &bcur, bend); r != 0 {
