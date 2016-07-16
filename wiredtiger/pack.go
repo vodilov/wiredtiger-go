@@ -439,6 +439,14 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 				*v = int32(vc)
 			case *int64:
 				*v = int64(vc)
+			case *uint:
+				*v = uint(vc)
+			case *uint16:
+				*v = uint16(vc)
+			case *uint32:
+				*v = uint32(vc)
+			case *uint64:
+				*v = uint64(vc)
 			default:
 				return EINVAL
 			}
@@ -448,6 +456,14 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 			return r
 		} else {
 			switch v := i.(type) {
+			case *int:
+				*v = int(vc)
+			case *int16:
+				*v = int16(vc)
+			case *int32:
+				*v = int32(vc)
+			case *int64:
+				*v = int64(vc)
 			case *uint:
 				*v = uint(vc)
 			case *uint16:
