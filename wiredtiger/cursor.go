@@ -204,25 +204,28 @@ func (c *Cursor) GetValue(a ...interface{}) error {
 }
 
 func (c *Cursor) SetKey(a ...interface{}) error {
-	b, res := Pack(c.session, c.keyFormat, a...)
+	var res error
+	c.keyPack, res = Pack(c.session, c.keyFormat, c.keyPack, a...)
 
 	if res != nil {
+		c.keySetExt = false
 		return res
 	}
 
-	c.keyPack = b
 	c.keySetExt = true
 	return nil
 }
 
 func (c *Cursor) SetValue(a ...interface{}) error {
-	b, res := Pack(c.session, c.valueFormat, a...)
+	var res error
+
+	c.valuePack, res = Pack(c.session, c.valueFormat, c.valuePack, a...)
 
 	if res != nil {
+		c.valueSetExt = false
 		return res
 	}
 
-	c.valuePack = b
 	c.valueSetExt = true
 	return nil
 }
@@ -269,12 +272,12 @@ func (c *Cursor) Next() error {
 	}
 
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 	return nil
@@ -286,12 +289,12 @@ func (c *Cursor) Prev() error {
 	}
 
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 	return nil
@@ -299,12 +302,12 @@ func (c *Cursor) Prev() error {
 
 func (c *Cursor) Reset() error {
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 
@@ -319,7 +322,7 @@ func (c *Cursor) Search() error {
 	var key_data unsafe.Pointer
 	var key_size C.size_t
 
-	if c.keyPack != nil && len(c.keyPack) > 0 {
+	if len(c.keyPack) > 0 {
 		key_data = unsafe.Pointer(&c.keyPack[0])
 		key_size = C.size_t(len(c.keyPack))
 	} else if c.keySetExt {
@@ -331,12 +334,12 @@ func (c *Cursor) Search() error {
 	}
 
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 	return nil
@@ -347,7 +350,7 @@ func (c *Cursor) SearchNear() (int, error) {
 	var key_size C.size_t
 	var compare_resultC C.int
 
-	if c.keyPack != nil && len(c.keyPack) > 0 {
+	if len(c.keyPack) > 0 {
 		key_data = unsafe.Pointer(&c.keyPack[0])
 		key_size = C.size_t(len(c.keyPack))
 	} else if c.keySetExt {
@@ -359,12 +362,12 @@ func (c *Cursor) SearchNear() (int, error) {
 	}
 
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 
@@ -377,14 +380,14 @@ func (c *Cursor) Insert() error {
 	var key_data, value_data unsafe.Pointer
 	var key_size, value_size C.size_t
 
-	if c.keyPack != nil && len(c.keyPack) > 0 {
+	if len(c.keyPack) > 0 {
 		key_data = unsafe.Pointer(&c.keyPack[0])
 		key_size = C.size_t(len(c.keyPack))
 	} else if c.keySetExt {
 		key_size = C.WT_SIZE_ZERO
 	}
 
-	if c.valuePack != nil && len(c.valuePack) > 0 {
+	if len(c.valuePack) > 0 {
 		value_data = unsafe.Pointer(&c.valuePack[0])
 		value_size = C.size_t(len(c.valuePack))
 	} else if c.valueSetExt {
@@ -396,12 +399,12 @@ func (c *Cursor) Insert() error {
 	}
 
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 
@@ -412,14 +415,14 @@ func (c *Cursor) Update() error {
 	var key_data, value_data unsafe.Pointer
 	var key_size, value_size C.size_t
 
-	if c.keyPack != nil && len(c.keyPack) > 0 {
+	if len(c.keyPack) > 0 {
 		key_data = unsafe.Pointer(&c.keyPack[0])
 		key_size = C.size_t(len(c.keyPack))
 	} else if c.keySetExt {
 		key_size = C.WT_SIZE_ZERO
 	}
 
-	if c.valuePack != nil && len(c.valuePack) > 0 {
+	if len(c.valuePack) > 0 {
 		value_data = unsafe.Pointer(&c.valuePack[0])
 		value_size = C.size_t(len(c.valuePack))
 	} else if c.valueSetExt {
@@ -431,12 +434,12 @@ func (c *Cursor) Update() error {
 	}
 
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 
@@ -447,7 +450,7 @@ func (c *Cursor) Remove() error {
 	var key_data unsafe.Pointer
 	var key_size C.size_t
 
-	if c.keyPack != nil && len(c.keyPack) > 0 {
+	if len(c.keyPack) > 0 {
 		key_data = unsafe.Pointer(&c.keyPack[0])
 		key_size = C.size_t(len(c.keyPack))
 	} else if c.keySetExt {
@@ -459,12 +462,12 @@ func (c *Cursor) Remove() error {
 	}
 
 	if c.keySetExt {
-		c.keyPack = nil
+		c.keyPack = c.keyPack[:0]
 		c.keySetExt = false
 	}
 
 	if c.valueSetExt {
-		c.valuePack = nil
+		c.valuePack = c.valuePack[:0]
 		c.valueSetExt = false
 	}
 

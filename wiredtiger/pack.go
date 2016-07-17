@@ -269,7 +269,7 @@ func (p *wtpack) pack_size(i interface{}) (int, int) {
 	}
 }
 
-func (p *wtpack) pack(buf []byte, i interface{}) []byte {
+func (p *wtpack) pack(buf []byte, i interface{}) ([]byte, int) {
 	switch p.vtype {
 	case 'x':
 		for p.size > 0 {
@@ -277,7 +277,11 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 			p.size--
 		}
 	case 's':
-		v := i.(string)
+		v, ok := i.(string)
+		if !ok {
+			return buf[:0], EINVAL
+		}
+
 		switch {
 		case p.size == len(v):
 			buf = append(buf, v...)
@@ -292,7 +296,11 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 			buf = append(buf, v[:p.size]...)
 		}
 	case 'S':
-		v := i.(string)
+		v, ok := i.(string)
+		if !ok {
+			return buf[:0], EINVAL
+		}
+
 		s := strings.IndexByte(v, 0)
 		if s == -1 {
 			buf = append(buf, v...)
@@ -301,7 +309,11 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 			buf = append(buf, v[:s+1]...)
 		}
 	case 'u', 'U':
-		v := i.([]byte)
+		v, ok := i.([]byte)
+		if !ok {
+			return buf[:0], EINVAL
+		}
+
 		s := len(v)
 		pad := 0
 
@@ -324,12 +336,20 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 			buf = append(buf, byte(0))
 		}
 	case 'b':
-		v := i.(int8)
+		v, ok := i.(int8)
+		if !ok {
+			return buf[:0], EINVAL
+		}
+
 		buf = append(buf, byte(uint8(v)^0x80))
 	case 'B', 't':
-		v := i.(byte)
+		v, ok := i.(byte)
+		if !ok {
+			return buf[:0], EINVAL
+		}
+
 		buf = append(buf, v)
-	case 'h', 'i', 'l', 'q':
+	case 'h', 'i', 'l', 'q', 'H', 'I', 'L', 'Q', 'r':
 		switch v := i.(type) {
 		case int:
 			buf = vpack_int(buf, int64(v))
@@ -339,9 +359,6 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 			buf = vpack_int(buf, int64(v))
 		case int64:
 			buf = vpack_int(buf, v)
-		}
-	case 'H', 'I', 'L', 'Q', 'r':
-		switch v := i.(type) {
 		case uint:
 			buf = vpack_uint(buf, uint64(v))
 		case uint16:
@@ -350,10 +367,12 @@ func (p *wtpack) pack(buf []byte, i interface{}) []byte {
 			buf = vpack_uint(buf, uint64(v))
 		case uint64:
 			buf = vpack_uint(buf, v)
+		default:
+			return buf[:0], EINVAL
 		}
 	}
 
-	return buf
+	return buf, 0
 }
 
 func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
@@ -483,10 +502,11 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 	return 0
 }
 
-func Pack(session *Session, pfmt string, a ...interface{}) ([]byte, error) {
+func Pack(session *Session, pfmt string, buf []byte, a ...interface{}) ([]byte, error) {
 	var res int
-	var total int
 	var cidx int
+
+	buf = buf[:0]
 
 	pcnt := len(a)
 
@@ -495,67 +515,34 @@ func Pack(session *Session, pfmt string, a ...interface{}) ([]byte, error) {
 		return nil, NewError(res, session)
 	}
 
-	//	fmt.Print(pfmt, "->")
-	//	fmt.Println(a...)
+	// Parameters have allready validated
 	res = wtp.next()
 	for res == 0 {
 		if wtp.vtype == 'x' {
-			s, _ := wtp.pack_size(byte(0))
-			total += s
+			buf, res = wtp.pack(buf, byte(0))
 			res = wtp.next()
 			continue
 		}
 
 		if cidx == pcnt {
 			res = EINVAL
-			panic(0)
+			buf = buf[:0]
 			break
 		}
 
-		s, r := wtp.pack_size(a[cidx])
-
-		if r != 0 {
-			res = r
+		if buf, res = wtp.pack(buf, a[cidx]); res != 0 {
 			break
 		}
 
-		total += s
 		res = wtp.next()
 		cidx++
 	}
 
 	if res != 0 && res != WT_NOTFOUND {
-		panic(NewError(res, session))
-		return nil, NewError(res, session)
+		return buf, NewError(res, session)
 	}
 
-	if total == 0 {
-		return nil, nil
-	}
-
-	rarray := make([]byte, 0, total)
-	wtp.reset()
-	cidx = 0
-
-	// Parameters have allready validated
-	res = wtp.next()
-	for res == 0 {
-		if wtp.vtype == 'x' {
-			rarray = wtp.pack(rarray, byte(0))
-			res = wtp.next()
-			continue
-		}
-
-		rarray = wtp.pack(rarray, a[cidx])
-		res = wtp.next()
-		cidx++
-	}
-
-	if res != 0 && res != WT_NOTFOUND {
-		return nil, NewError(res, session)
-	}
-
-	return rarray, nil
+	return buf, nil
 }
 
 func UnPack(session *Session, pfmt string, buf []byte, a ...interface{}) error {
