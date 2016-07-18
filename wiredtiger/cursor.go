@@ -190,7 +190,10 @@ func (c *Cursor) GetKey(a ...interface{}) error {
 		return NewError(res, c.session)
 	}
 
-	return UnPack(c.session, c.keyFormat, C.GoBytes(unsafe.Pointer(v.data), C.int(v.size)), a...)
+	d := (*[1 << 30]byte)(unsafe.Pointer(v.data))[:int(v.size):int(v.size)]
+
+	// C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
+	return UnPack(c.session, c.keyFormat, d, a...)
 }
 
 func (c *Cursor) GetValue(a ...interface{}) error {
@@ -200,7 +203,10 @@ func (c *Cursor) GetValue(a ...interface{}) error {
 		return NewError(res, c.session)
 	}
 
-	return UnPack(c.session, c.valueFormat, C.GoBytes(unsafe.Pointer(v.data), C.int(v.size)), a...)
+	d := (*[1 << 30]byte)(unsafe.Pointer(v.data))[:int(v.size):int(v.size)]
+
+	// C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
+	return UnPack(c.session, c.valueFormat, d, a...)
 }
 
 func (c *Cursor) SetKey(a ...interface{}) error {

@@ -424,7 +424,8 @@ func (p *wtpack) unpack(buf []byte, bcur *int, bend int, i interface{}) int {
 			s = bend - *bcur
 		}
 
-		*v = buf[*bcur : *bcur+s]
+		*v = (*v)[:0]
+		*v = append(*v, buf[*bcur:*bcur+s]...)
 		*bcur += s
 
 	case 'b':
