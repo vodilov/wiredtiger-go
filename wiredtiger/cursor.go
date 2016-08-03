@@ -127,6 +127,8 @@ int wiredtiger_cursor_remove(WT_CURSOR *cursor, const void *data, size_t size) {
 import "C"
 import "unsafe"
 
+//import "fmt"
+
 type Cursor struct {
 	w           *C.WT_CURSOR
 	session     *Session
@@ -190,9 +192,20 @@ func (c *Cursor) GetKey(a ...interface{}) error {
 		return NewError(res, c.session)
 	}
 
+	// Fast patch
+	if c.keyFormat == "u" {
+		if len(a) == 1 {
+			if arg, ok := a[0].(*[]byte); ok {
+				*arg = C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
+				return nil
+			}
+		}
+
+		return NewError(EINVAL, c.session)
+	}
+
 	d := (*[1 << 30]byte)(unsafe.Pointer(v.data))[:int(v.size):int(v.size)]
 
-	// C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
 	return UnPack(c.session, c.keyFormat, d, a...)
 }
 
@@ -201,6 +214,18 @@ func (c *Cursor) GetValue(a ...interface{}) error {
 
 	if res := int(C.wiredtiger_cursor_get_value(c.w, &v)); res != 0 {
 		return NewError(res, c.session)
+	}
+
+	// Fast patch
+	if c.valueFormat == "u" {
+		if len(a) == 1 {
+			if arg, ok := a[0].(*[]byte); ok {
+				*arg = C.GoBytes(unsafe.Pointer(v.data), C.int(v.size))
+				return nil
+			}
+		}
+
+		return NewError(EINVAL, c.session)
 	}
 
 	d := (*[1 << 30]byte)(unsafe.Pointer(v.data))[:int(v.size):int(v.size)]
