@@ -516,7 +516,6 @@ func Pack(session *Session, pfmt string, buf []byte, a ...interface{}) ([]byte, 
 		return nil, NewError(res, session)
 	}
 
-	// Parameters have allready validated
 	res = wtp.next()
 	for res == 0 {
 		if wtp.vtype == 'x' {
