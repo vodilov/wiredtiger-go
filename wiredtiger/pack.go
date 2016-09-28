@@ -668,6 +668,79 @@ func PackInterface(a ...interface{}) []byte {
 			buf = vpack_uint(buf, uint64(v))
 		case uint64:
 			buf = vpack_uint(buf, v)
+
+		case []int:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_int(buf, int64(va))
+			}
+		case []int16:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_int(buf, int64(va))
+			}
+		case []int32:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_int(buf, int64(va))
+			}
+		case []int64:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_int(buf, va)
+			}
+
+		case []uint:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_uint(buf, uint64(va))
+			}
+		case []uint16:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_uint(buf, uint64(va))
+			}
+		case []uint32:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_uint(buf, uint64(va))
+			}
+		case []uint64:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				buf = vpack_uint(buf, va)
+			}
+
+		case []string:
+			if i != lastArg {
+				buf = vpack_uint(buf, uint64(len(v)))
+			}
+			for _, va := range v {
+				s := strings.IndexByte(va, 0)
+				if s != -1 {
+					buf = append(buf, va[:s+1]...)
+					buf = append(buf, byte(0))
+				} else {
+					buf = append(buf, va...)
+				}
+			}
+
 		default:
 			return nil
 		}
@@ -769,6 +842,247 @@ func UnPackInterface(session *Session, buf []byte, a ...interface{}) error {
 			} else {
 				*v = vc
 			}
+
+		case *[]int:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, int(va))
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, int(va))
+					}
+				}
+			}
+		case *[]int16:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, int16(va))
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, int16(va))
+					}
+				}
+			}
+		case *[]int32:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, int32(va))
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, int32(va))
+					}
+				}
+			}
+		case *[]int64:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, va)
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_int(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, va)
+					}
+				}
+			}
+
+		case *[]uint:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, uint(va))
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, uint(va))
+					}
+				}
+			}
+		case *[]uint16:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, uint16(va))
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, uint16(va))
+					}
+				}
+			}
+		case *[]uint32:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, uint32(va))
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, uint32(va))
+					}
+				}
+			}
+		case *[]uint64:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, va)
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					if va, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+						return NewError(r, session)
+					} else {
+						*v = append(*v, va)
+					}
+				}
+			}
+
+		case *[]string:
+			if i != lastArg {
+				var s int
+
+				if su, r := vunpack_uint(buf, &bcur, bend); r != 0 {
+					return NewError(r, session)
+				} else {
+					s = int(su)
+				}
+				for ; s > 0; s-- {
+					ss := bytes.IndexByte(buf[bcur:], 0)
+					switch {
+					case ss == 0:
+						*v = append(*v, "")
+						bcur++
+					case ss > 0:
+						*v = append(*v, string(buf[bcur:bcur+ss]))
+						bcur += ss + 1
+					default:
+						return NewError(EINVAL, session)
+					}
+				}
+			} else {
+				for bend-bcur > 0 {
+					ss := bytes.IndexByte(buf[bcur:], 0)
+					switch {
+					case ss == 0:
+						*v = append(*v, "")
+						bcur++
+					case ss > 0:
+						*v = append(*v, string(buf[bcur:bcur+ss]))
+						bcur += ss + 1
+					default:
+						return NewError(EINVAL, session)
+					}
+				}
+			}
+
 		default:
 			return NewError(EINVAL, session)
 		}
