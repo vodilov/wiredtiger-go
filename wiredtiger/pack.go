@@ -639,9 +639,9 @@ func PackInterface(a ...interface{}) []byte {
 			s := strings.IndexByte(v, 0)
 			if s != -1 {
 				buf = append(buf, v[:s+1]...)
-				buf = append(buf, byte(0))
 			} else {
 				buf = append(buf, v...)
+				buf = append(buf, byte(0))
 			}
 		case []byte:
 			if i != lastArg {
@@ -735,9 +735,9 @@ func PackInterface(a ...interface{}) []byte {
 				s := strings.IndexByte(va, 0)
 				if s != -1 {
 					buf = append(buf, va[:s+1]...)
-					buf = append(buf, byte(0))
 				} else {
 					buf = append(buf, va...)
+					buf = append(buf, byte(0))
 				}
 			}
 
